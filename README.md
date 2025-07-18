@@ -30,15 +30,14 @@ Protenix is built for high-accuracy structure prediction. It serves as an initia
 ![Protenix predictions](assets/protenix_predictions.gif)
 
 ## 🌟 Related Projects
+- **[PXMeter](https://github.com/bytedance/PXMeter/)** is an open-source toolkit designed for reproducible evaluation of structure prediction models, released with high-quality benchmark dataset that has been manually reviewed to remove experimental artifacts and non-biological interactions. The associated study presents an in-depth comparative analysis of state-of-the-art models, drawing insights from extensive metric data and detailed case studies. The evaluation of Protenix is based on PXMeter.
 - **[Protenix-Dock](https://github.com/bytedance/Protenix-Dock)**: Our implementation of a classical protein-ligand docking framework that leverages empirical scoring functions. Without using deep neural networks, Protenix-Dock delivers competitive performance in rigid docking tasks.
 
-## Updates
-### 🎉 Model Update
-
+## 🎉 Updates
+- 2025-07-17: **Protenix-Mini released!**: Lightweight model variants with significantly reduced inference cost are now available. Users can choose from multiple configurations to balance speed and accuracy based on deployment needs. See our [paper](https://arxiv.org/abs/2507.11839) and [model configs](./configs/configs_model_type.py) for more information. 
+- 2025-07-17: [***New constraint feature***](docs/infer_json_format.md#constraint) is released! Now supports **atom-level contact** and **pocket** constraints, significantly improving performance in our evaluations.
 - 2025-05-30: **Protenix-v0.5.0** is now available! You may try Protenix-v0.5.0 by accessing the [server](https://protenix-server.com), or upgrade to the latest version using pip.
-
-### 🔥 Feature Update
-- 2025-01-16: The preview version of [constraint feature](./README.md#early-access-to-new-constraint-feature) is released to branch [`constraint_esm`](https://github.com/bytedance/Protenix/tree/constraint_esm).
+- 2025-01-16: The preview version of **constraint feature** is released to branch [`constraint_esm`](https://github.com/bytedance/Protenix/tree/constraint_esm).
 - 2025-01-16: The [training data pipeline](./docs/prepare_training_data.md) is released.
 - 2025-01-16: The [MSA pipeline](./docs/msa_pipeline.md) is released.
 - 2025-01-16: Use [local colabfold_search](./docs/colabfold_compatible_msa.md) to generate protenix-compatible MSA.
@@ -124,18 +123,23 @@ If you installed `Protenix` via `pip`, you can run the following command to perf
 
 
 ```bash
-# the default n_cycle/n_step/n_samples is 10/200/5 respectively, you can modify it by passing --cycle x1 --step x2 --sample x3
+# 1. The default model_name is protenix_base_default_v0.5.0, you can modify it by passing --model_name xxxx
+# 2. We provide recommended default configuration parameters for each model. To customize cycle/step/use_msa settings, you must set --use_default_params false
+# 3. You can modify cycle/step/use_msa by passing --cycle x1 --step x2 --use_msa false
 
 # run with example.json, which contains precomputed msa dir.
-protenix predict --input examples/example.json --out_dir  ./output --seeds 101
+protenix predict --input examples/example.json --out_dir  ./output --seeds 101 --model_name "protenix_base_default_v0.5.0"
+
+# run with example.json, we use only esm feature.
+protenix predict --input examples/example.json --out_dir  ./output --seeds 101 --model_name "protenix_mini_esm_v0.5.0" --use_msa false
 
 # run with multiple json files, the default seed is 101.
 protenix predict --input ./jsons_dir/ --out_dir  ./output
 
 # if the json do not contain precomputed msa dir,
-# add --use_msa_server to search msa and then predict.
+# add --use_msa (default: true) to search msa and then predict.
 # if mutiple seeds are provided, split them by comma.
-protenix predict --input examples/example_without_msa.json --out_dir ./output --seeds 101,102 --use_msa_server
+protenix predict --input examples/example_without_msa.json --out_dir ./output --seeds 101,102 --use_msa true
 ```
 
 ### Inference via Bash Script
@@ -147,11 +151,11 @@ bash inference_demo.sh
 ```
 
 The script accepts the following arguments:
+* `model_name`: Name of the model to use for inference.
 * `input_json_path`: Path to a JSON file that fully specifies the input structure.
 * `dump_dir`: Directory where inference results will be saved.
 * `dtype`: Data type used during inference. Supported options: `bf16` and `fp32`.
 * `use_msa`: Whether to enable MSA features (default: true).
-* `use_esm`: Whether to enable ESM features (default: false).
 
 
 > **Note**: By default, layernorm and EvoformerAttention kernels are disabled for simplicity.
@@ -162,14 +166,17 @@ The script accepts the following arguments:
 
 Refer to the [Training Documentation](docs/training.md) for setup and details.
 
-## 📌 Constraint Feature
+## Model Features
+###  📌 Constraint
 
-Protenix now allows users to specify ***contacts***, enabling the model to leverage additional inter-chain information as constraint guidance! We benchmarked this feature on the PoseBusters dataset and a curated protein-antibody interface subset.  Results show that Protenix can generate significantly more accurate structures when guided by constraints. You can try it out via the [`constraint_esm`](https://github.com/bytedance/Protenix/tree/constraint_esm) branch.
+Protenix supports specifying ***contacts*** (at both residue and atom levels) and ***pocket constraints*** as extra guidance. Our benchmark results demonstrate that constraint-guided predictions are significantly more accurate.See our [doc](docs/infer_json_format.md#constraint) for input format details.
 
 ![Constraint Metrics](assets/constraint_metrics.png)
 
-> **Tips:** Our online service already supports constraint inputs — no local setup required!
-However, for local command-line usage, be sure to check out the [`constraint_esm`](https://github.com/bytedance/Protenix/tree/constraint_esm) branch, as this feature is not yet included in the main branch.
+###  📌 Mini-Models
+We introduce Protenix-Mini, a lightweight variant of Protenix that uses reduced network blocks and few ODE steps (even as few as one or two steps) to enable efficient prediction of biomolecular complex structures. Experimental results show that Protenix-Mini achieves a favorable balance between efficiency and accuracy, with only a marginal 1–5% drop in evaluation metrics such as interface LDDT, complex LDDT, and ligand RMSD success rate. Protenix-Mini enables accurate structure prediction in high-throughput and resource-limited scenarios, making it well-suited for practical applications at scale. The following comparisons were performed on a subset of the RecentPDB dataset comprising sequences with fewer than 768 tokens.
+
+![Mini/Tiny Metrics](assets/mini_performance.png)
 
 
 ## Training and Inference Cost

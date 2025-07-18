@@ -24,11 +24,13 @@ from typing import List, Optional, Union
 import click
 import tqdm
 from Bio import SeqIO
+from ml_collections.config_dict import ConfigDict
 from rdkit import Chem
 
 from configs.configs_base import configs as configs_base
 from configs.configs_data import data_configs
 from configs.configs_inference import inference_configs
+from configs.configs_model_type import model_configs
 from protenix.config import parse_configs
 from protenix.data.json_maker import cif_to_input_json
 from protenix.data.json_parser import lig_file_to_atom_info
@@ -164,13 +166,10 @@ def get_default_runner(
     n_cycle: int = 10,
     n_step: int = 200,
     n_sample: int = 5,
+    model_name: str = "protenix_base_default_v0.5.0",
+    use_msa: bool = True,
 ) -> InferenceRunner:
-    configs_base["use_deepspeed_evo_attention"] = (
-        os.environ.get("USE_DEEPSPEED_EVO_ATTENTION", False) == "true"
-    )
-    configs_base["model"]["N_cycle"] = n_cycle
-    configs_base["sample_diffusion"]["N_sample"] = n_sample
-    configs_base["sample_diffusion"]["N_step"] = n_step
+    inference_configs["model_name"] = model_name
     configs = {**configs_base, **{"data": data_configs}, **inference_configs}
     configs = parse_configs(
         configs=configs,
@@ -178,18 +177,36 @@ def get_default_runner(
     )
     if seeds is not None:
         configs.seeds = seeds
-    download_infercence_cache(configs, model_version="v0.5.0")
+    model_name = configs.model_name
+    _, model_size, model_feature, model_version = model_name.split("_")
+    logger.info(
+        f"Inference by Protenix: model_size: {model_size}, with_feature: {model_feature.replace('-', ',')}, model_version: {model_version}"
+    )
+    model_specfics_configs = ConfigDict(model_configs[model_name])
+    # update model specific configs
+    configs.update(model_specfics_configs)
+    # the user input configs has the highest priority
+    configs.use_deepspeed_evo_attention = (
+        os.environ.get("USE_DEEPSPEED_EVO_ATTENTION", False) == "true"
+    )
+    configs.model.N_cycle = n_cycle
+    configs.sample_diffusion.N_sample = n_sample
+    configs.sample_diffusion.N_step = n_step
+    configs.use_msa = use_msa
+
+    download_infercence_cache(configs)
     return InferenceRunner(configs)
 
 
 def inference_jsons(
     json_file: str,
     out_dir: str = "./output",
-    use_msa_server: bool = False,
+    use_msa: bool = True,
     seeds: tuple = (101,),
     n_cycle: int = 10,
     n_step: int = 200,
     n_sample: int = 5,
+    model_name: str = "protenix_base_default_v0.5.0",
 ) -> None:
     """
     infer_json: json file or directory, will run infer with these jsons
@@ -216,12 +233,12 @@ def inference_jsons(
     infer_errors = {}
     inference_configs["dump_dir"] = out_dir
     inference_configs["input_json_path"] = infer_jsons[0]
-    runner = get_default_runner(seeds, n_cycle, n_step, n_sample)
+    runner = get_default_runner(seeds, n_cycle, n_step, n_sample, model_name, use_msa)
     configs = runner.configs
     for idx, infer_json in enumerate(tqdm.tqdm(infer_jsons)):
         try:
             configs["input_json_path"] = update_infer_json(
-                infer_json, out_dir=out_dir, use_msa_server=use_msa_server
+                infer_json, out_dir=out_dir, use_msa=use_msa
             )
             infer_predict(runner, configs)
         except Exception as exc:
@@ -244,26 +261,76 @@ def protenix_cli():
 @click.option("--cycle", type=int, default=10, help="pairformer cycle number")
 @click.option("--step", type=int, default=200, help="diffusion step")
 @click.option("--sample", type=int, default=5, help="sample number")
-@click.option("--use_msa_server", is_flag=True, help="do msa search or not")
-def predict(input, out_dir, seeds, cycle, step, sample, use_msa_server):
+@click.option(
+    "--model_name",
+    type=str,
+    default="protenix_base_default_v0.5.0",
+    help="select model checkpoint for inference",
+)
+@click.option(
+    "--use_msa",
+    type=bool,
+    default=True,
+    help="use msa for inference or not, use the precomputed msa or msa searching by server",
+)
+@click.option(
+    "--use_default_params", type=bool, default=True, help="use the default params"
+)
+def predict(
+    input,
+    out_dir,
+    seeds,
+    cycle,
+    step,
+    sample,
+    model_name,
+    use_msa,
+    use_default_params,
+):
     """
     predict: Run predictions with protenix.
-    :param input, out_dir, use_msa_server
+    :param input, out_dir, seeds, cycle, step, sample, model_name, use_msa, use_default_params
     :return:
     """
     init_logging()
+    logger.info(f"run infer with input={input}, out_dir={out_dir}, sample={sample}")
+    if use_default_params:
+        if model_name in [
+            "protenix_base_default_v0.5.0",
+            "protenix_base_constraint_v0.5.0",
+        ]:
+            cycle = 10
+            step = 200
+        elif model_name in [
+            "protenix_mini_esm_v0.5.0",
+            "protenix_mini_ism_v0.5.0",
+            "protenix_mini_default_v0.5.0",
+            "protenix_tiny_default_v0.5.0",
+        ]:
+            cycle = 4
+            step = 5
+            if model_name in [
+                "protenix_mini_esm_v0.5.0",
+                "protenix_mini_ism_v0.5.0",
+            ]:
+                use_msa = False
+        else:
+            raise RuntimeError(
+                f"{model_name} is not supported for inference in our model list"
+            )
     logger.info(
-        f"run infer with input={input}, out_dir={out_dir}, cycle={cycle}, step={step}, sample={sample}, use_msa_server={use_msa_server}"
+        f"Using the default params for inference for model {model_name}: cycle={cycle}, step={step}, use_msa={use_msa}"
     )
     seeds = list(map(int, seeds.split(",")))
     inference_jsons(
         input,
         out_dir,
-        use_msa_server,
+        use_msa,
         seeds=seeds,
         n_cycle=cycle,
         n_step=step,
         n_sample=sample,
+        model_name=model_name,
     )
 
 
@@ -361,7 +428,7 @@ def msa(input, out_dir) -> Union[str, dict]:
     init_logging()
     logger.info(f"run msa with input={input}, out_dir={out_dir}")
     if input.endswith(".json"):
-        msa_input_json = update_infer_json(input, out_dir, use_msa_server=True)
+        msa_input_json = update_infer_json(input, out_dir, use_msa=True)
         logger.info(f"msa results have been update to {msa_input_json}")
         return msa_input_json
     elif input.endswith(".fasta"):

@@ -30,6 +30,9 @@ basic_configs = {
     "checkpoint_interval": -1,
     "eval_first": False,  # run evaluate() before training steps
     "iters_to_accumulate": 1,
+    "finetune_params_with_substring": [
+        ""
+    ],  # params with substring will be finetuned with different learning rate: finetune_optim_configs["lr"]
     "eval_only": False,
     "load_checkpoint_path": "",
     "load_ema_checkpoint_path": "",
@@ -38,6 +41,7 @@ basic_configs = {
     "skip_load_step": False,
     "skip_load_optimizer": False,
     "skip_load_scheduler": False,
+    "load_step_for_scheduler": False,
     "train_confidence_only": False,
     "use_wandb": True,
     "wandb_id": "",
@@ -47,6 +51,7 @@ basic_configs = {
     "ema_decay": -1.0,
     "eval_ema_only": False,  # whether wandb only tracking ema checkpoint metrics
     "ema_mutable_param_keywords": [""],
+    "model_name": "protenix_base_default_v0.5.0",  # train model name
 }
 data_configs = {
     # Data
@@ -58,6 +63,11 @@ data_configs = {
     "test_lig_atom_rename": False,
     "test_shuffle_mols": False,
     "test_shuffle_sym_ids": False,
+    "esm": {
+        "enable": False,
+        "model_name": "esm2-3b",
+        "embedding_dim": 2560,
+    },
 }
 optim_configs = {
     # Optim
@@ -83,6 +93,17 @@ optim_configs = {
         "decay_factor": 0.95,
         "lr": GlobalConfigValue("lr"),
     },
+}
+# Fine-tuned optimizer settings.
+# For models supporting structural constraints and ESM embeddings.
+finetune_optim_configs = {
+    # Optim
+    "lr": 0.0018,
+    "lr_scheduler": "cosine_annealing",
+    "warmup_steps": 1000,
+    "max_steps": 20000,
+    "min_lr_ratio": 0.1,
+    "decay_every_n_steps": 50000,
 }
 model_configs = {
     # Model
@@ -180,6 +201,33 @@ model_configs = {
             "pair_dropout": 0.25,
             "blocks_per_ckpt": GlobalConfigValue("blocks_per_ckpt"),
             "msa_chunk_size": ValueMaybeNone(2048),
+        },
+        # Optional constraint embedder, only used when constraint is enabled.
+        "constraint_embedder": {
+            "pocket_embedder": {
+                "enable": False,
+                "c_s_input": 3,
+                "c_z_input": 1,
+            },
+            "contact_embedder": {
+                "enable": False,
+                "c_z_input": 2,
+            },
+            "substructure_embedder": {
+                "enable": False,
+                "n_classes": 4,
+                "architecture": "transformer",
+                "hidden_dim": 128,
+                "n_layers": 1,
+            },
+            "contact_atom_embedder": {
+                "enable": False,
+                "c_z_input": 2,
+            },
+            "c_constraint_z": GlobalConfigValue("c_z"),
+            "c_constraint_s": GlobalConfigValue("c_s_inputs"),
+            "c_constraint_atom_pair": GlobalConfigValue("c_atompair"),
+            "initialize_method": "zero",  # zero, kaiming
         },
         "pairformer": {
             "n_blocks": GlobalConfigValue("n_blocks"),
@@ -344,3 +392,4 @@ configs = {
     **perm_configs,
     **loss_configs,
 }
+configs["finetune"] = finetune_optim_configs

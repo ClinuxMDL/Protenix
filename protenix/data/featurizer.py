@@ -23,7 +23,7 @@ from sklearn.neighbors import KDTree
 
 from protenix.data.constants import STD_RESIDUES, STD_RESIDUES_WITH_GAP, get_all_elems
 from protenix.data.tokenizer import Token, TokenArray
-from protenix.data.utils import get_ligand_polymer_bond_mask
+from protenix.data.utils import get_atom_level_token_mask, get_ligand_polymer_bond_mask
 from protenix.utils.geometry import angle_3p, random_transform
 
 
@@ -268,6 +268,7 @@ class Featurizer(object):
                         - frame_atom_index: The index of the atoms used to construct the frame.
         """
         token_array_w_frame = token_array
+        atom_level_token_mask = get_atom_level_token_mask(token_array, atom_array)
 
         # Construct a KDTree for queries to avoid redundant distance calculations
         lig_res_ref_conf_kdtree = {}
@@ -275,6 +276,7 @@ class Featurizer(object):
         lig_atom_array = atom_array[
             (atom_array.mol_type == "ligand")
             | (~np.isin(atom_array.res_name, list(STD_RESIDUES.keys())))
+            | atom_level_token_mask
         ]
         for ref_space_uid in np.unique(lig_atom_array.ref_space_uid):
             # The ref_space_uid is the unique identifier ID for each residue.
@@ -292,6 +294,7 @@ class Featurizer(object):
             if (
                 centre_atom.mol_type != "ligand"
                 and centre_atom.res_name in STD_RESIDUES
+                and len(token.atom_indices) > 1
             ):
                 has_frame, frame_atom_index = Featurizer.get_prot_nuc_frame(
                     token, centre_atom
@@ -575,14 +578,18 @@ class Featurizer(object):
             ), f"{lig_label_asym_id} is not in the label_asym_id of the cropped atom array."
 
             ligand_mask = atom_array.label_asym_id == lig_label_asym_id
-            lig_pos = atom_array.coord[ligand_mask]
+            lig_pos = atom_array.coord[ligand_mask & atom_array.is_resolved]
 
             # Get atoms in 10 Angstrom radius
             near_atom_indices = np.unique(
                 np.concatenate(kdtree.query_radius(lig_pos, 10.0))
             )
             near_atoms = [
-                True if i in near_atom_indices else False
+                (
+                    True
+                    if ((i in near_atom_indices) and atom_array.is_resolved[i])
+                    else False
+                )
                 for i in range(len(atom_array))
             ]
 

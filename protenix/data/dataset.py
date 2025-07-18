@@ -28,11 +28,16 @@ from ml_collections.config_dict import ConfigDict
 from torch.utils.data import Dataset
 
 from protenix.data.constants import EvaluationChainInterface
+from protenix.data.constraint_featurizer import ConstraintFeatureGenerator
 from protenix.data.data_pipeline import DataPipeline
 from protenix.data.featurizer import Featurizer
 from protenix.data.msa_featurizer import MSAFeaturizer
 from protenix.data.tokenizer import TokenArray
-from protenix.data.utils import data_type_transform, make_dummy_feature
+from protenix.data.utils import (
+    data_type_transform,
+    get_antibody_clusters,
+    make_dummy_feature,
+)
 from protenix.utils.cropping import CropData
 from protenix.utils.file_io import read_indices_csv
 from protenix.utils.logger import get_logger
@@ -98,6 +103,15 @@ class BaseSingleDataset(Dataset):
         self.limits = kwargs.get(
             "limits", -1
         )  # Limit number of indices rows, mainly for test
+        # Configs for constraint
+        self.constraint = kwargs.get("constraint", {})
+        if self.constraint.get("enable", False):
+            logger.info(f"[{self.name}] constraint config: {self.constraint}")
+            # Do not rely on new files for users who do not use constraint feature
+            self.ab_top2_clusters = get_antibody_clusters()
+            self.constraint_generator = ConstraintFeatureGenerator(
+                self.constraint, self.ab_top2_clusters
+            )
 
         self.error_dir = kwargs.get("error_dir", None)
         if self.error_dir is not None:
@@ -466,6 +480,8 @@ class BaseSingleDataset(Dataset):
                 bioassembly_dict["atom_array"]
             )
 
+        max_entity_mol_id = bioassembly_dict["atom_array"].entity_mol_id.max()
+
         # Crop
         (
             crop_method,
@@ -488,6 +504,7 @@ class BaseSingleDataset(Dataset):
             template_features=cropped_template_features,
             full_atom_array=bioassembly_dict["atom_array"],
             is_spatial_crop="spatial" in crop_method.lower(),
+            max_entity_mol_id=max_entity_mol_id,
         )
 
         # Basic info, e.g. dimension related items
@@ -588,6 +605,13 @@ class BaseSingleDataset(Dataset):
             sample_indice = self.indices_list.iloc[idx]
         return sample_indice
 
+    def _get_pdb_indice(self, idx: int) -> pd.core.series.Series:
+        if self.group_by_pdb_id:
+            pdb_indice = self.indices_list[idx].copy()
+        else:
+            pdb_indice = self.indices_list.iloc[idx : idx + 1].copy()
+        return pdb_indice
+
     def _get_eval_chain_interface_mask(
         self, idx: int, atom_array_chain_id: np.ndarray
     ) -> tuple[np.ndarray, np.ndarray, torch.Tensor, torch.Tensor]:
@@ -642,6 +666,40 @@ class BaseSingleDataset(Dataset):
 
         return eval_type, cluster_id, chain_1_mask, chain_2_mask
 
+    def get_constraint_feature(
+        self,
+        idx,
+        atom_array,
+        token_array,
+        msa_features,
+        max_entity_mol_id,
+        full_atom_array,
+    ):
+        sample_indice = self._get_sample_indice(idx=idx)
+        pdb_indice = self._get_pdb_indice(idx=idx)
+        features_dict = {}
+        (
+            token_array,
+            atom_array,
+            msa_features,
+            constraint_feature_dict,
+            feature_info,
+            log_dict,
+            full_atom_array,
+        ) = self.constraint_generator.generate(
+            atom_array,
+            token_array,
+            sample_indice,
+            pdb_indice,
+            msa_features,
+            max_entity_mol_id,
+            full_atom_array,
+        )
+        features_dict["constraint_feature"] = constraint_feature_dict
+        features_dict.update(feature_info)
+        features_dict["constraint_log_info"] = log_dict
+        return token_array, atom_array, features_dict, msa_features, full_atom_array
+
     def get_feature_and_label(
         self,
         idx: int,
@@ -651,6 +709,7 @@ class BaseSingleDataset(Dataset):
         template_features: dict[str, Any],
         full_atom_array: AtomArray,
         is_spatial_crop: bool = True,
+        max_entity_mol_id: int = None,
     ) -> tuple[dict[str, torch.Tensor], dict[str, torch.Tensor]]:
         """
         Get feature and label information for a given data point.
@@ -666,13 +725,26 @@ class BaseSingleDataset(Dataset):
             template_features: Dictionary of template features.
             full_atom_array: Full atom array containing all atoms.
             is_spatial_crop: Flag indicating whether spatial cropping is applied, by default True.
-
+            max_entity_mol_id: Maximum entity mol ID in the full atom array.
         Returns:
             A tuple containing the feature dictionary and the label dictionary.
 
         Raises:
             ValueError: If the ligand cannot be found in the data point.
         """
+        features_dict = {}
+        if self.constraint.get("enable", False):
+            token_array, atom_array, features_dict, msa_features, full_atom_array = (
+                self.get_constraint_feature(
+                    idx,
+                    atom_array,
+                    token_array,
+                    msa_features,
+                    max_entity_mol_id,
+                    full_atom_array,
+                )
+            )
+
         # Get feature and labels from Featurizer
         feat = Featurizer(
             cropped_token_array=token_array,
@@ -680,7 +752,7 @@ class BaseSingleDataset(Dataset):
             ref_pos_augment=self.ref_pos_augment,
             lig_atom_rename=self.lig_atom_rename,
         )
-        features_dict = feat.get_all_input_features()
+        features_dict.update(feat.get_all_input_features())
         labels_dict = feat.get_labels()
 
         # Permutation list for atom permutation
@@ -1063,6 +1135,7 @@ def get_datasets(
             "lig_atom_rename": config_dict.get("lig_atom_rename", False),
             "shuffle_mols": config_dict.get("shuffle_mols", False),
             "shuffle_sym_ids": config_dict.get("shuffle_sym_ids", False),
+            "constraint": config_dict.get("constraint", {}),
         }
 
     data_config = configs.data

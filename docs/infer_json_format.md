@@ -210,6 +210,92 @@ The position value starts at 1 and can vary based on the type of entity:
 
 Deprecation Notice: The previous fields such as old `left_entity`, `right_entity`, and other fields starting with `left`/`right` have been updated to use `1` and `2` to denote the two atoms forming a bond. The current code still supports the old field names, but they may be deprecated in the future, leaving only the new field names. An alternative approach is to write the element name of the specified atom in the SMILES/file, along with its sequential number for that element, e.g., "C2" indicates it is the second carbon.
 
+Here is a revised user guide compatible with **Version 2** of the `constraint` format for the Complex Structure Predictor:
+
+---
+
+### constraint
+The `constraint` section specifies additional structural information to enable inter-chain guidance for Protenix. Currently, Protenix support two kind of constraint: `contact` and `pocket` constraint. 
+The `contact` constraint allows you to specify residue/atom-residue/atom level priors. The `pocket` constraint is used to guide the binding interface between a chain of interest (e.g. a ligand or an antibody) and specific residues in another chain (e.g. epitopes).
+
+> 💡 *This is a **soft constraint**: the model is encouraged, but not strictly required, to satisfy it.*
+
+#### contact constraint
+
+The `contact` field consists of a list of dictionaries, each describing one contact. The residues and atoms involved in the contact are now represented as compact lists, making the format more concise and flexible.
+
+##### Example:
+
+```json
+"contact": [
+    {
+        "residue1": ["1", 1, 169],
+        "atom2": ["2", 1, 1, "C5"],
+        "max_distance": 6,
+        "min_distance": 0
+    }, // token-contact
+    {
+        "atom1": ["1", 1, 169, "CA"],
+        "residue2": ["2", 1, 1],
+        "max_distance": 6,
+        "min_distance": 0
+    }, // token-contact
+    {
+        "residue1": ["1", 1, 169],
+        "residue2": ["2", 1, 1 ],
+        "max_distance": 6,
+        "min_distance": 0
+    }, // token-contact
+    {
+        "atom1": ["1", 1, 169, "CA"],
+        "atom2": ["2", 1, 1, "C5"],
+        "max_distance": 6,
+        "min_distance": 3
+    }, // atom-contact
+    ...
+]
+```
+
+Each contact dictionary includes the following keys:
+* `residue1` or `residue2` (list):
+  Specifies a **residue** in the format:`[entity_number, copy_index, position]`
+
+* `atom1` or `atom2` (list):
+  Specifies an **atom** (commonly from a ligand or another residue) in the format:`[entity_number, copy_index, position, atom_name]`
+
+* `max_distance` (float):
+  The **expected maximum distance** (in Ångströms) between the specified residues or atoms.
+* `min_distance` (float):
+  The **expected minimum distance** (in Ångströms) between the specified residues or atoms. For token-contact, you do not need to specify this field. It is 0 by default.
+
+#### pocket constraint
+
+The `pocket` constraint is defined as a dictionary with three keys: `"binder_chain"`, `"contact_residues"`, and `"max_distance"` to allow chain-residue binding specification.
+
+##### Example
+
+```json
+"pocket": {
+  "binder_chain": ["2", 1], 
+  "contact_residues": [
+    ["1", 1, 126],
+    ...
+  ], 
+  "max_distance": 6
+}
+```
+
+* `binder_chain` (list):
+  Specifies the **binder chain** in the format:  `[entity_number, copy_index]`
+
+* `contact_residues` (list of lists):
+  A list of residue  that are expected to be in spatial proximity (i.e., in or near the binding pocket). Each residue is specified as:
+  `[entity_number, copy_index, position]`
+
+* `max_distance` (float):
+  The **maximum allowed distance** (in Ångströms) between the binder and the specified contact residues.
+
+
 ### Format of the model output
 The outputs will be saved in the directory provided via the `--dump_dir` flag in the inference script. The outputs include the predicted structures in CIF format and the confidence in JSON files. The `--dump_dir` will have the following structure:
 

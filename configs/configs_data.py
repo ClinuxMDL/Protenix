@@ -33,6 +33,10 @@ default_test_configs = {
     "lig_atom_rename": GlobalConfigValue("test_lig_atom_rename"),
     "shuffle_mols": GlobalConfigValue("test_shuffle_mols"),
     "shuffle_sym_ids": GlobalConfigValue("test_shuffle_sym_ids"),
+    "constraint": {
+        "enable": False,
+        "fix_seed": False,  # True means use use the same contact in each evaluation.
+    },
 }
 
 default_weighted_pdb_configs = {
@@ -58,6 +62,63 @@ default_weighted_pdb_configs = {
     "lig_atom_rename": GlobalConfigValue("train_lig_atom_rename"),
     "shuffle_mols": GlobalConfigValue("train_shuffle_mols"),
     "shuffle_sym_ids": GlobalConfigValue("train_shuffle_sym_ids"),
+    # If enabled, the training settings for different constraint types,
+    # providing the model a certain proportion of constraints
+    # that meet specific conditions.
+    "constraint": {
+        "enable": False,
+        "fix_seed": False,
+        "pocket": {
+            "prob": 0.0,
+            "size": 1 / 3,
+            "spec_binder_chain": False,
+            "max_distance_range": {"PP": ListValue([6, 20]), "LP": ListValue([6, 20])},
+            "group": "complex",
+            "distance_type": "center_atom",
+        },
+        "contact": {
+            "prob": 0.0,
+            "size": 1 / 3,
+            "max_distance_range": {
+                "PP": ListValue([6, 30]),
+                "PL": ListValue([4, 10]),
+            },
+            "group": "complex",
+            "distance_type": "center_atom",
+        },
+        "substructure": {
+            "prob": 0.0,
+            "size": 0.8,
+            "mol_type_pairs": {
+                "PP": 15,
+                "PL": 10,
+                "LP": 10,
+            },
+            "feature_type": "one_hot",
+            "ratios": {
+                "full": [
+                    0.0,
+                    0.5,
+                    1.0,
+                ],  # ratio options of full chain substructure constraint
+                "partial": 0.3,  # ratio of partial chain substructure constraint
+            },
+            "coord_noise_scale": 0.05,
+            "spec_asym_id": False,
+        },
+        "contact_atom": {
+            "prob": 0.0,
+            "size": 1 / 3,
+            "max_distance_range": {
+                "PP": ListValue([2, 12]),
+                "PL": ListValue([2, 8]),
+            },
+            "min_distance": -1,
+            "group": "complex",
+            "distance_type": "atom",
+            "feature_type": "continuous",
+        },
+    },
 }
 
 DATA_ROOT_DIR = os.environ.get("PROTENIX_DATA_ROOT_DIR", "/af3-dev/release_data/")
@@ -76,6 +137,7 @@ if (not os.path.exists(CCD_COMPONENTS_FILE_PATH)) or (
     CCD_COMPONENTS_RDKIT_MOL_FILE_PATH = os.path.join(
         DATA_ROOT_DIR, "components.v20240608.cif.rdkit_mol.pkl"
     )
+PDB_CLUSTER_FILE_PATH = os.path.join(DATA_ROOT_DIR, "clusters-by-entity-40.txt")
 
 
 # This is a patch in inference stage for users that do not have root permission.
@@ -213,4 +275,5 @@ data_configs = {
     },
     "ccd_components_file": CCD_COMPONENTS_FILE_PATH,
     "ccd_components_rdkit_mol_file": CCD_COMPONENTS_RDKIT_MOL_FILE_PATH,
+    "pdb_cluster_file": PDB_CLUSTER_FILE_PATH,
 }

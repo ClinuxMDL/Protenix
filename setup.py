@@ -13,9 +13,12 @@
 # limitations under the License.
 
 import sys
+from pathlib import Path
 
 from setuptools import find_packages, setup
 
+this_directory = Path(__file__).parent
+long_description = (this_directory / "README.md").read_text()
 # Read requirements from the file
 with open("requirements.txt") as f:
     install_requires = f.read().splitlines()
@@ -35,8 +38,10 @@ if "--cpu" in sys.argv:
 setup(
     name="protenix",
     python_requires=">=3.10",
-    version="0.5.2",
+    version="0.5.3",
     description="A trainable PyTorch reproduction of AlphaFold 3.",
+    long_description=long_description,
+    long_description_content_type="text/markdown",
     author="Bytedance Inc.",
     url="https://github.com/bytedance/Protenix",
     author_email="ai4s-bio@bytedance.com",

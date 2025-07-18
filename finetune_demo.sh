@@ -14,10 +14,11 @@
 
 export LAYERNORM_TYPE=fast_layernorm
 export USE_DEEPSPEED_EVO_ATTENTION=true
-# wget -P /af3-dev/release_model/ https://af3-dev.tos-cn-beijing.volces.com/release_model/model_v0.5.0.pt
-checkpoint_path="/af3-dev/release_model/model_v0.5.0.pt"
+# wget -P /af3-dev/release_model/ https://af3-dev.tos-cn-beijing.volces.com/release_model/protenix_base_default_v0.5.0.pt
+checkpoint_path="/af3-dev/release_model/protenix_base_default_v0.5.0.pt"
 
 python3 ./runner/train.py \
+--model_name "protenix_base_constraint_v0.5.0" \
 --run_name protenix_finetune \
 --seed 42 \
 --base_dir ./output \

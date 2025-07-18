@@ -1416,7 +1416,7 @@ class MMCIFParser:
         return chain_indices_list
 
     def make_interface_indices(
-        self, atom_array: AtomArray, chain_indices_list: list
+        self, atom_array: AtomArray, chain_indices_list: list, radius: float = 5
     ) -> list:
         """make interface indices
         As described in SI 2.5.1, interfaces defined as pairs of chains with minimum heavy atom
@@ -1424,6 +1424,7 @@ class MMCIFParser:
         Args:
             atom_array (AtomArray): _description_
             chain_indices_list (List): _description_
+            radius (float): interface radius, default to be 5
         """
 
         chain_indices_dict = {i["chain_id"]: i for i in chain_indices_list}
@@ -1436,7 +1437,7 @@ class MMCIFParser:
             chain_mask = atom_array.chain_id == chain_i
             coord = atom_array.coord[chain_mask & atom_array.is_resolved]
             neighbors_indices_2d = cell_list.get_atoms(
-                coord, radius=5
+                coord, radius=radius
             )  # shape:(n_coord, max_n_neighbors), padding with -1
             neighbors_indices = np.unique(neighbors_indices_2d)
             neighbors_indices = neighbors_indices[neighbors_indices != -1]
@@ -1610,12 +1611,14 @@ class MMCIFParser:
         self,
         bioassembly_dict: dict[str, Any],
         pdb_cluster_file: Union[str, Path] = None,
+        interface_radius: float = 5,
     ) -> list:
         """generate indices of chains and interfaces for sampling data
 
         Args:
             bioassembly_dict (dict): dict from MMCIFParser.get_bioassembly().
             cluster_file (str): PDB cluster file. Defaults to None.
+            interface_radius (float): radius to determine interface.
         Return:
             List(Dict(str, str)): sample_indices_list
         """
@@ -1627,7 +1630,7 @@ class MMCIFParser:
             return []
         chain_indices_list = self.make_chain_indices(atom_array, pdb_cluster_file)
         interface_indices_list = self.make_interface_indices(
-            atom_array, chain_indices_list
+            atom_array, chain_indices_list, radius=interface_radius
         )
         meta_dict = {
             "pdb_id": bioassembly_dict["pdb_id"],

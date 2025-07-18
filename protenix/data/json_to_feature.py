@@ -19,6 +19,7 @@ import numpy as np
 import torch
 from biotite.structure import AtomArray
 
+from protenix.data.constraint_featurizer import ConstraintFeatureGenerator
 from protenix.data.featurizer import Featurizer
 from protenix.data.json_parser import add_entity_atom_array, remove_leaving_atoms
 from protenix.data.parser import AddAtomArrayAnnot
@@ -195,9 +196,9 @@ class SampleDictToFeatures:
 
                 if isinstance(atom_name, int):
                     # Convert AtomMap in SMILES to atom name in AtomArray
-                    entity_dict = list(self.input_dict["sequences"][
-                        int(entity_id - 1)
-                    ].values())[0]
+                    entity_dict = list(
+                        self.input_dict["sequences"][int(entity_id - 1)].values()
+                    )[0]
                     assert "atom_map_to_atom_name" in entity_dict
                     atom_name = entity_dict["atom_map_to_atom_name"][atom_name]
 
@@ -302,8 +303,20 @@ class SampleDictToFeatures:
         aa_tokenizer = AtomArrayTokenizer(atom_array)
         token_array = aa_tokenizer.get_token_array()
 
+        (
+            constraint_feature,
+            token_array,
+            atom_array,
+        ) = ConstraintFeatureGenerator.generate_from_json(
+            token_array,
+            atom_array,
+            self.input_dict["sequences"],
+            self.input_dict.get("constraint", {}),
+        )
+
         featurizer = Featurizer(token_array, atom_array)
         feature_dict = featurizer.get_all_input_features()
+        feature_dict["constraint_feature"] = constraint_feature
 
         token_array_with_frame = featurizer.get_token_frame(
             token_array=token_array,

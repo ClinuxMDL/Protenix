@@ -1043,7 +1043,15 @@ class InferenceMSAFeaturizer(object):
         msa_sequences = {}
         msa_dirs = {}
         for idx, (sequence, entity_id_list) in enumerate(sequence_to_entity.items()):
-            msa_info = bioassembly[int(entity_id_list[0]) - 1][PROT_TYPE_NAME]["msa"]
+            try:
+                msa_info = bioassembly[int(entity_id_list[0]) - 1][PROT_TYPE_NAME][
+                    "msa"
+                ]
+            except KeyError:
+                raise KeyError(
+                    f"you set use_msa=True, but the inference json file do not contain msa, please add msa refer to: "
+                    + f"`protenix msa --input examples/example_without_msa.json --out_dir ./output`"
+                )
             msa_dir = msa_info.get("precomputed_msa_dir", None)
             if msa_dir is not None:
                 assert opexists(

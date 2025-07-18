@@ -25,9 +25,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Mapping, Sequence, Tuple
 
 import numpy as np
+import requests
 
 import protenix.data.ccd as ccd
-import requests
 from protenix.data.json_to_feature import SampleDictToFeatures
 from protenix.web_service.colab_request_utils import run_mmseqs2_service
 from protenix.web_service.dependency_url import URL
@@ -79,13 +79,18 @@ class TooLargeComplexError(Exception):
 
 class RequestParser(object):
     def __init__(
-        self, request_json_path: str, request_dir: str, email: str = ""
+        self,
+        request_json_path: str,
+        request_dir: str,
+        email: str = "",
+        model_name: str = "protenix_base_default_v0.5.0",
     ) -> None:
         with open(request_json_path, "r") as f:
             self.request = json.load(f)
         self.request_dir = request_dir
         self.fpath = os.path.abspath(__file__)
         self.email = email
+        self.model_name = model_name
         os.makedirs(self.request_dir, exist_ok=True)
 
     def download_data_cache(self) -> Dict[str, str]:
@@ -95,6 +100,7 @@ class RequestParser(object):
         for cache_name, fname in [
             ("ccd_components_file", "components.v20240608.cif"),
             ("ccd_components_rdkit_mol_file", "components.v20240608.cif.rdkit_mol.pkl"),
+            ("pdb_cluster_file", "clusters-by-entity-40.txt"),
         ]:
             if not opexists(
                 cache_path := os.path.abspath(opjoin(data_cache_dir, fname))
@@ -105,21 +111,20 @@ class RequestParser(object):
             cache_paths[cache_name] = cache_path
         return cache_paths
 
-    def download_model(self, model_version: str, checkpoint_local_path: str) -> None:
-        tos_url = URL[f"model_{model_version}"]
+    def download_model(self, model_name: str, checkpoint_local_path: str) -> None:
+        tos_url = URL[f"{model_name}"]
         print(f"Downloading model checkpoing from\n {tos_url}...")
         download_tos_url(tos_url, checkpoint_local_path)
 
     def get_model(self) -> str:
         checkpoint_dir = CHECKPOINT_DIR
         os.makedirs(checkpoint_dir, exist_ok=True)
-        model_version = self.request["model_version"]
         if not opexists(
-            checkpoint_path := opjoin(checkpoint_dir, f"model_{model_version}.pt")
+            checkpoint_path := opjoin(checkpoint_dir, f"{self.model_name}.pt")
         ):
-            self.download_model(model_version, checkpoint_local_path=checkpoint_path)
+            self.download_model(self.model_name, checkpoint_local_path=checkpoint_path)
         if opexists(checkpoint_path):
-            return checkpoint_path
+            return checkpoint_dir
         else:
             raise ValueError("Failed in finding model checkpoint.")
 
@@ -374,7 +379,7 @@ class RequestParser(object):
 
     def launch(self) -> None:
         input_json_path = self.get_data_json()
-        checkpoint_path = self.get_model()
+        checkpoint_dir = self.get_model()
 
         entry_path = os.path.abspath(
             opjoin(os.path.dirname(self.fpath), "../../runner/inference.py")
@@ -382,7 +387,8 @@ class RequestParser(object):
         command_parts = [
             "export LAYERNORM_TYPE=fast_layernorm;",
             f"python3 {entry_path}",
-            f"--load_checkpoint_path {checkpoint_path}",
+            f"--load_checkpoint_dir {checkpoint_dir}",
+            f"--model_name {self.model_name}",
             f"--dump_dir {self.request_dir}",
             f"--input_json_path {input_json_path}",
             f"--need_atom_confidence {self.request['atom_confidence']}",
@@ -420,11 +426,18 @@ if __name__ == "__main__":
     parser.add_argument(
         "--email", type=str, required=False, default="", help="Your email address."
     )
+    parser.add_argument(
+        "--model_name",
+        type=str,
+        default="protenix_base_default_v0.5.0",
+        help="The model name for inference.",
+    )
 
     args = parser.parse_args()
     parser = RequestParser(
         request_json_path=args.request_json_path,
         request_dir=args.request_dir,
         email=args.email,
+        model_name=args.model_name,
     )
     parser.launch()

@@ -43,6 +43,7 @@ class DataPipeline(object):
         mmcif: Union[str, Path],
         pdb_cluster_file: Union[str, Path, None] = None,
         dataset: str = "WeightedPDB",
+        interface_radius: float = 5,
     ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
         """
         Get raw data from mmcif with tokenizer and a list of chains and interfaces for sampling.
@@ -51,7 +52,7 @@ class DataPipeline(object):
             mmcif (Union[str, Path]): The raw mmcif file.
             pdb_cluster_file (Union[str, Path, None], optional): Cluster info txt file. Defaults to None.
             dataset (str, optional): The dataset type, either "WeightedPDB" or "Distillation". Defaults to "WeightedPDB".
-
+            interface_radius (float, optional): The radius of the interface. Defaults to 5.
         Returns:
             tuple[list[dict[str, Any]], dict[str, Any]]:
                 sample_indices_list (list[dict[str, Any]]): The sample indices list (each one is a chain or an interface).
@@ -70,7 +71,9 @@ class DataPipeline(object):
                 )
 
             sample_indices_list = parser.make_indices(
-                bioassembly_dict=bioassembly_dict, pdb_cluster_file=pdb_cluster_file
+                bioassembly_dict=bioassembly_dict,
+                pdb_cluster_file=pdb_cluster_file,
+                interface_radius=interface_radius,
             )
             if len(sample_indices_list) == 0:
                 # empty indices and AtomArray

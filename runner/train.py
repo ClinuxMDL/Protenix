@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import datetime
+import hashlib
 import logging
 import os
 import time
@@ -21,11 +22,13 @@ from contextlib import nullcontext
 import torch
 import torch.distributed as dist
 import wandb
+from ml_collections.config_dict import ConfigDict
 from torch.nn.parallel import DistributedDataParallel as DDP
 from tqdm import tqdm
 
 from configs.configs_base import configs as configs_base
 from configs.configs_data import data_configs
+from configs.configs_model_type import model_configs
 from protenix.config import parse_configs, parse_sys_args
 from protenix.config.config import save_config
 from protenix.data.dataloader import get_dataloaders
@@ -33,7 +36,7 @@ from protenix.metrics.lddt_metrics import LDDTMetrics
 from protenix.model.loss import ProtenixLoss
 from protenix.model.protenix import Protenix
 from protenix.utils.distributed import DIST_WRAPPER
-from protenix.utils.lr_scheduler import get_lr_scheduler
+from protenix.utils.lr_scheduler import FinetuneLRScheduler, get_lr_scheduler
 from protenix.utils.metrics import SimpleMetricAggregator
 from protenix.utils.permutation.permutation import SymmetricPermutation
 from protenix.utils.seed import seed_everything
@@ -130,7 +133,8 @@ class AF3Trainer(object):
             )
         if not self.configs.deterministic_seed:
             # use rank-specific seed
-            rank_seed = hash((self.configs.seed, DIST_WRAPPER.rank, "init_seed"))
+            hash_string = f"({self.configs.seed},{DIST_WRAPPER.rank},init_seed)"
+            rank_seed = int(hashlib.sha256(hash_string.encode("utf8")).hexdigest(), 16)
             rank_seed = rank_seed % (2**32)
         else:
             rank_seed = self.configs.seed
@@ -171,6 +175,11 @@ class AF3Trainer(object):
         else:
             self.model = self.raw_model
 
+        def count_parameters(model):
+            total_params = sum(p.numel() for p in model.parameters())
+            return total_params / 1000.0 / 1000.0
+
+        self.print(f"Model Parameters: {count_parameters(self.model)}")
         if self.configs.get("ema_decay", -1) > 0:
             assert self.configs.ema_decay < 1
             self.ema_wrapper = EMAWrapper(
@@ -181,11 +190,27 @@ class AF3Trainer(object):
             self.ema_wrapper.register()
 
         torch.cuda.empty_cache()
-        self.optimizer = get_optimizer(self.configs, self.model)
+        self.optimizer = get_optimizer(
+            self.configs,
+            self.model,
+            param_names=self.configs.get("finetune_params_with_substring", [""]),
+        )
         self.init_scheduler()
 
     def init_scheduler(self, **kwargs):
-        self.lr_scheduler = get_lr_scheduler(self.configs, self.optimizer, **kwargs)
+        # init finetune lr scheduler if available
+        finetune_params = self.configs.get("finetune_params_with_substring", [""])
+        is_finetune = len(finetune_params[0]) > 0
+
+        if is_finetune:
+            self.lr_scheduler = FinetuneLRScheduler(
+                self.optimizer,
+                self.configs,
+                self.configs.finetune,
+                **kwargs,
+            )
+        else:
+            self.lr_scheduler = get_lr_scheduler(self.configs, self.optimizer, **kwargs)
 
     def init_data(self):
         self.train_dl, self.test_dls = get_dataloaders(
@@ -219,6 +244,7 @@ class AF3Trainer(object):
             skip_load_optimizer: bool = False,
             skip_load_step: bool = False,
             skip_load_scheduler: bool = False,
+            load_step_for_scheduler: bool = True,
         ):
             if not os.path.exists(checkpoint_path):
                 raise Exception(f"Given checkpoint path not exist [{checkpoint_path}]")
@@ -250,9 +276,13 @@ class AF3Trainer(object):
                 if not skip_load_scheduler:
                     self.print(f"Loading scheduler state")
                     self.lr_scheduler.load_state_dict(checkpoint["scheduler"])
-                else:
+                elif load_step_for_scheduler:
+                    assert (
+                        not skip_load_step
+                    ), "if load_step_for_scheduler is True, you must load step first"
                     # reinitialize LR scheduler using the updated optimizer and step
                     self.init_scheduler(last_epoch=self.step - 1)
+
             self.print(f"Finish loading checkpoint, current step: {self.step}")
 
         # Load EMA model parameters
@@ -271,6 +301,7 @@ class AF3Trainer(object):
                 skip_load_optimizer=self.configs.skip_load_optimizer,
                 skip_load_scheduler=self.configs.skip_load_scheduler,
                 skip_load_step=self.configs.skip_load_step,
+                load_step_for_scheduler=self.configs.load_step_for_scheduler,
             )
 
     def print(self, msg: str):
@@ -516,13 +547,13 @@ class AF3Trainer(object):
                 if step_need_log or is_last_step:
                     metrics = self.train_metric_wrapper.calc()
                     self.print(f"Step {self.step} train: {metrics}")
-                    last_lr = self.lr_scheduler.get_last_lr()[0]
+                    last_lr = self.lr_scheduler.get_last_lr()
                     if DIST_WRAPPER.rank == 0:
                         if self.configs.use_wandb:
-                            wandb.log(
-                                {"train/lr": last_lr},
-                                step=self.step,
-                            )
+                            lr_dict = {"train/lr": last_lr[0]}
+                            for group_i, group_lr in enumerate(last_lr):
+                                lr_dict[f"train/group{group_i}_lr"] = group_lr
+                            wandb.log(lr_dict, step=self.step)
                         self.print(f"Step {self.step}, lr: {last_lr}")
                     if self.configs.use_wandb and DIST_WRAPPER.rank == 0:
                         wandb.log(metrics, step=self.step)
@@ -564,6 +595,10 @@ def main():
         configs,
         parse_sys_args(),
     )
+    model_name = configs.model_name
+    model_specfics_configs = ConfigDict(model_configs[model_name])
+    # update model specific configs
+    configs.update(model_specfics_configs)
 
     print(configs.run_name)
     print(configs)

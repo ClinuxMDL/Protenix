@@ -23,10 +23,6 @@ logger = get_logger(__name__)
 
 
 def need_msa_search(json_data: dict) -> bool:
-    need_msa = json_data.get("use_msa", True)
-    # TODO: add esm check
-    if not need_msa:
-        return need_msa
     need_msa = False
     for sequence in json_data["sequences"]:
         if "proteinChain" in sequence.keys():
@@ -75,15 +71,13 @@ def update_seq_msa(infer_seq: dict, msa_res_dir: str) -> dict:
     return infer_seq
 
 
-def update_infer_json(
-    json_file: str, out_dir: str, use_msa_server: bool = False
-) -> str:
+def update_infer_json(json_file: str, out_dir: str, use_msa: bool = True) -> str:
     """
     update json file for inference.
-    for every infer_data, if it needs to update msa result info,
-    it will run msa searching if use_msa_server is True,
-    else it will raise error.
-    if it does not need to update msa result info, then pass.
+    for every infer_data, if it needs to inference with msa and
+    msa is not complete or missing in the json file,
+    it will run msa searching if use_msa is True,
+    else it will pass.
     """
     if not os.path.exists(json_file):
         raise RuntimeError(f"`{json_file}` not exists.")
@@ -92,21 +86,16 @@ def update_infer_json(
 
     actual_updated = False
     for seq_idx, infer_data in enumerate(json_data):
-        if need_msa_search(infer_data):
+        if use_msa and need_msa_search(infer_data):
             actual_updated = True
-            if use_msa_server:
-                seq_name = infer_data.get("name", f"seq_{seq_idx}")
-                logger.info(
-                    f"starting to update msa result for seq {seq_idx} in {json_file}"
-                )
-                update_seq_msa(
-                    infer_data,
-                    os.path.join(out_dir, seq_name, "msa_res" f"msa_seq_{seq_idx}"),
-                )
-            else:
-                raise RuntimeError(
-                    f"infer seq {seq_idx} in `{json_file}` has no msa result, please add first."
-                )
+            seq_name = infer_data.get("name", f"seq_{seq_idx}")
+            logger.info(
+                f"starting to update msa result for seq {seq_idx} in {json_file}"
+            )
+            update_seq_msa(
+                infer_data,
+                os.path.join(out_dir, seq_name, "msa_res" f"msa_seq_{seq_idx}"),
+            )
     if actual_updated:
         updated_json = os.path.join(
             os.path.dirname(os.path.abspath(json_file)),
@@ -116,6 +105,14 @@ def update_infer_json(
             json.dump(json_data, f, indent=4)
         logger.info(f"update msa result success and save to {updated_json}")
         return updated_json
+    elif not use_msa:
+        logger.warning(
+            f"the inference json file {json_file} \n"
+            + "do not contain msa and will not be updated,\n"
+            + "and you set not using msa, in this mode, \n"
+            + "if you do not use esm feature, model performance might degrade significantly"
+        )
+        return json_file
     else:
         logger.info(f"do not need to update msa result, so return itself {json_file}")
         return json_file

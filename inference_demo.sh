@@ -22,8 +22,10 @@ seed=101
 
 input_json_path="./examples/example.json"
 dump_dir="./output"
+model_name="protenix_base_default_v0.5.0"
 
 python3 runner/inference.py \
+--model_name ${model_name} \
 --seeds ${seed} \
 --dump_dir ${dump_dir} \
 --input_json_path ${input_json_path} \

@@ -27,7 +27,59 @@ from biotite.structure import AtomArray
 from biotite.structure.io import pdbx
 from biotite.structure.io.pdb import PDBFile
 
+from configs.configs_data import data_configs
 from protenix.data.constants import DNA_STD_RESIDUES, PRO_STD_RESIDUES, RNA_STD_RESIDUES
+
+
+def get_antibody_clusters():
+    PDB_CLUSTER_FILE = data_configs["pdb_cluster_file"]
+    try:
+        with open(PDB_CLUSTER_FILE, "r") as f:
+            lines = f.readlines()
+    except FileNotFoundError:
+        raise FileNotFoundError(
+            f"The file {PDB_CLUSTER_FILE} does not exist. \n"
+            + f"Downloading it from https://af3-dev.tos-cn-beijing.volces.com/release_data/clusters-by-entity-40.txt"
+        )
+
+    cluster_list = [line.strip().split() for line in lines]
+    antibody_top2_clusters = set(
+        [i.lower() for i in cluster_list[0]] + [i.lower() for i in cluster_list[1]]
+    )
+    return antibody_top2_clusters
+
+
+def get_atom_mask_by_name(
+    atom_array: AtomArray,
+    entity_id: int = None,
+    position: int = None,
+    atom_name: str = None,
+    copy_id: int = None,
+) -> np.ndarray:
+    """
+    Get the atom mask of atoms with specific identifiers.
+
+    Args:
+        atom_array (AtomArray): Biotite Atom array.
+        entity_id (int): Entity id.
+        position (int): Residue index of the atom.
+        atom_name (str): Atom name.
+        copy_id (copy_id): A asym chain id in N copies of an entity.
+
+    Returns:
+        np.ndarray: Array of a bool mask.
+    """
+    mask = np.ones(atom_array.shape, dtype=np.bool_)
+
+    if entity_id is not None:
+        mask &= atom_array.label_entity_id == str(entity_id)
+    if position is not None:
+        mask &= atom_array.res_id == int(position)
+    if atom_name is not None:
+        mask &= atom_array.atom_name == str(atom_name)
+    if copy_id is not None:
+        mask &= atom_array.copy_id == int(copy_id)
+    return mask
 
 
 def remove_numbers(s: str) -> str:
@@ -774,6 +826,26 @@ def pdb_to_cif(input_fname: str, output_fname: str, entry_id: str = None):
         entry_id=entry_id or os.path.basename(output_fname),
         include_bonds=True,
     )
+
+
+def get_atom_level_token_mask(token_array, atom_array) -> np.ndarray:
+    """
+    Create a boolean mask indicating whether each atom in the atom array
+    corresponds to an atom-level token (token containing only one atom).
+
+    Returns:
+        np.ndarray: Boolean tensor of shape [N_atom] where True indicates
+                     the atom belongs to an atom-level token
+    """
+    atom_level_mask = np.zeros(len(atom_array), dtype=bool)
+
+    # For each token, check if it's an atom-level token (contains only one atom)
+    for token in token_array:
+        if len(token.atom_indices) == 1:
+            # If token has only one atom, mark that atom as belonging to an atom-level token
+            atom_level_mask[token.atom_indices[0]] = True
+
+    return atom_level_mask
 
 
 if __name__ == "__main__":
