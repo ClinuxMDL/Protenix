@@ -266,7 +266,7 @@ data_configs = {
                 DATA_ROOT_DIR, "md0805_test1_bioassembly"
             ),
             "indices_fpath": os.path.join(
-                DATA_ROOT_DIR, "indices/md0805_test1.csv"
+                DATA_ROOT_DIR, "indices/md0805_test1_ligand_prot.csv"
             ),
             "pdb_list": "",
             "find_pocket": True,
@@ -282,7 +282,7 @@ data_configs = {
                 DATA_ROOT_DIR, "md0805_test2_bioassembly"
             ),
             "indices_fpath": os.path.join(
-                DATA_ROOT_DIR, "indices/md0805_test2.csv"
+                DATA_ROOT_DIR, "indices/md0805_test2_ligand_prot.csv"
             ),
             "pdb_list": "",
             "find_pocket": True,
