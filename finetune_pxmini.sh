@@ -1,0 +1,45 @@
+# Copyright 2024 ByteDance and/or its affiliates.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+export LAYERNORM_TYPE=fast_layernorm
+export USE_DEEPSPEED_EVO_ATTENTION=true
+export PYTHONPATH="."
+export PROTENIX_DATA_ROOT_DIR="/hpc-cache-pfs/home/dataland/af3-dev/release_data"
+export CUTLASS_PATH="/opt/cutlass"
+export TORCH_EXTENSIONS_DIR="/hpc-cache-pfs/home/.cache/torch_cache/torch_extensions_A100"
+export TORCH_CUDA_ARCH_LIST="7.0;8.0;9.0"
+# wget -P /af3-dev/release_model/ https://af3-dev.tos-cn-beijing.volces.com/release_model/protenix_base_default_v0.5.0.pt
+checkpoint_path="/hpc-cache-pfs/home/xyj/code/Protenix/release_data/checkpoint/protenix_mini_default_v0.5.0.pt"
+
+python3 ./runner/train.py \
+--model_name "protenix_mini_default_v0.5.0" \
+--run_name protenix_ft_md \
+--seed 42 \
+--base_dir ./output \
+--dtype bf16 \
+--project protenix_finetune_md \
+--use_wandb false \
+--diffusion_batch_size 48 \
+--eval_interval 400 \
+--log_interval 50 \
+--checkpoint_interval 400 \
+--ema_decay 0.999 \
+--train_crop_size 384 \
+--max_steps 1000 \
+--load_checkpoint_path ${checkpoint_path} \
+--load_ema_checkpoint_path ${checkpoint_path} \
+--data.train_sets md0805_trainingset \
+--data.test_sets md0805_testset1,md0805_testset2 \
+--data.md0805_testset1.base_info.max_n_token 500 \
+--data.md0805_testset2.base_info.max_n_token 500

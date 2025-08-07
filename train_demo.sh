@@ -45,7 +45,7 @@ python3 ./runner/train.py \
 # python scripts/prepare_training_data.py -i /hpc-cache-pfs/home/dataland/af3-dev/pdbbind_md_v1/md0805_training_mmcifs -o /hpc-cache-pfs/home/dataland/af3-dev/pdbbind_md_v1/md0805_training_mmcifs_processed.csv  -b /hpc-cache-pfs/home/dataland/af3-dev/pdbbind_md_v1/md0805_training_bioassembly -d -c /hpc-cache-pfs/home/dataland/af3-dev/pdbbind_md_v1/clusters-by-entity-40-and-lig-70_train.txt -n 10
 
 
-python scripts/prepare_training_data.py -i /hpc-cache-pfs/home/dataland/af3-dev/pdbbind_md_v1/md0805_test1_mmcif -o /hpc-cache-pfs/home/dataland/af3-dev/pdbbind_md_v1/md0805_test1.csv -b /hpc-cache-pfs/home/dataland/af3-dev/pdbbind_md_v1/md0805_test1_bioassembly -d -n 10
+# python scripts/prepare_training_data.py -i /hpc-cache-pfs/home/dataland/af3-dev/pdbbind_md_v1/md0805_test1_mmcif -o /hpc-cache-pfs/home/dataland/af3-dev/pdbbind_md_v1/md0805_test1.csv -b /hpc-cache-pfs/home/dataland/af3-dev/pdbbind_md_v1/md0805_test1_bioassembly -d -n 10
 
 
-python scripts/prepare_training_data.py -i /hpc-cache-pfs/home/dataland/af3-dev/pdbbind_md_v1/md0805_test2_mmcif -o /hpc-cache-pfs/home/dataland/af3-dev/pdbbind_md_v1/md0805_test2.csv -b /hpc-cache-pfs/home/dataland/af3-dev/pdbbind_md_v1/md0805_test2_bioassembly -d -n 10
+# python scripts/prepare_training_data.py -i /hpc-cache-pfs/home/dataland/af3-dev/pdbbind_md_v1/md0805_test2_mmcif -o /hpc-cache-pfs/home/dataland/af3-dev/pdbbind_md_v1/md0805_test2.csv -b /hpc-cache-pfs/home/dataland/af3-dev/pdbbind_md_v1/md0805_test2_bioassembly -d -n 10

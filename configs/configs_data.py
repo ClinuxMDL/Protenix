@@ -207,7 +207,7 @@ data_configs = {
     "md0805_trainingset": {
         "base_info": {
             "mmcif_dir": os.path.join(DATA_ROOT_DIR, "md0805_training_mmcif"),
-            "bioassembly_dict_dir": os.path.join(DATA_ROOT_DIR, "md0805_bioassembly"),
+            "bioassembly_dict_dir": os.path.join(DATA_ROOT_DIR, "md0805_training_bioassembly"),
             "indices_fpath": os.path.join(
                 DATA_ROOT_DIR,
                 "indices/md0805_training.csv",
