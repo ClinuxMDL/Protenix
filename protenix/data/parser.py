@@ -27,6 +27,7 @@ import biotite.structure.io.pdbx as pdbx
 import numpy as np
 import pandas as pd
 from biotite.structure import AtomArray, get_chain_starts, get_residue_starts
+from biotite.structure.bonds import BondList
 from biotite.structure.io.pdbx import convert as pdbx_convert
 from biotite.structure.molecules import get_molecule_indices
 
@@ -494,12 +495,17 @@ class MMCIFParser:
 
         atom_array.res_id = res_id.astype(int)
         return atom_array
+    
+    def _get_custom_bonds(self, mmcif):
+        
+        pass
 
     def get_structure(
         self,
         altloc: str = "first",
         model: int = 1,
         bond_lenth_threshold: Union[float, None] = 2.4,
+        lig_bonds: list = None
     ) -> AtomArray:
         """
         Get an AtomArray created by bioassembly of MMCIF.
@@ -563,6 +569,15 @@ class MMCIFParser:
         )
 
         bonds = struc.connect_via_residue_names(atoms, inter_residue=False)
+        # custom_bonds = self.get_custom_bonds()
+        # if custom_bonds is not None:
+        #     bonds = bonds.merge(custom_bonds)
+        if lig_bonds is not None:
+            lig_bonds = np.array(lig_bonds, dtype=np.int32)
+            max_atom_id = np.max(lig_bonds[:, :2])
+            lig_bonds_meta = BondList(max_atom_id+1, lig_bonds)
+            bonds = bonds.merge(lig_bonds_meta)
+
         if "struct_conn" in block:
             conn_bonds = pdbx_convert._parse_inter_residue_bonds(
                 model_atom_site, block["struct_conn"]
@@ -1694,7 +1709,7 @@ class MMCIFParser:
 
 class DistillationMMCIFParser(MMCIFParser):
 
-    def get_structure_dict(self) -> dict[str, Any]:
+    def get_structure_dict(self, lig_bonds = None, lig_name = None) -> dict[str, Any]:
         """
         Get an AtomArray from a CIF file of distillation data.
 
@@ -1702,7 +1717,7 @@ class DistillationMMCIFParser(MMCIFParser):
             Dict[str, Any]: a dict of asymmetric unit structure info.
         """
         # created AtomArray of first model from mmcif atom_site (Asymmetric Unit)
-        atom_array = self.get_structure()
+        atom_array = self.get_structure(lig_bonds=lig_bonds)
 
         # convert MSE to MET to consistent with MMCIFParser.get_poly_res_names()
         atom_array = self.mse_to_met(atom_array)
@@ -1721,13 +1736,17 @@ class DistillationMMCIFParser(MMCIFParser):
             self.fix_arginine,
             self.add_missing_atoms_and_residues,  # add UNK
         ]
+        # for func in pipeline_functions:
+        #     atom_array = func(atom_array)
+        #     if len(atom_array) == 0:
+        #         # no atoms left
+        #         return structure_dict
 
-        for func in pipeline_functions:
-            atom_array = func(atom_array)
-            if len(atom_array) == 0:
-                # no atoms left
-                return structure_dict
+        is_resolved = np.ones(len(atom_array), dtype=bool)
+        atom_array.set_annotation("is_resolved", is_resolved)
 
+        if lig_name is not None:
+            atom_array.res_name[atom_array.res_name == "LIG"] = lig_name
         atom_array = AddAtomArrayAnnot.add_token_mol_type(
             atom_array, self.entity_poly_type
         )
@@ -2413,11 +2432,12 @@ class AddAtomArrayAnnot(object):
             if not res_dict:
                 res_perm.extend([[i] for i in curr_res_atom_idx])
                 continue
-
+            
             perm_array = res_dict["perm"]  # [N_atoms, N_perm]
             perm_atom_idx_in_res_order = [
                 res_dict["atom_map"][i] for i in res_atom.atom_name
             ]
+            
             perm_idx_to_present_atom_idx = dict(
                 zip(perm_atom_idx_in_res_order, curr_res_atom_idx)
             )
@@ -2440,6 +2460,8 @@ class AddAtomArrayAnnot(object):
                 and new_perm_array.shape[1] <= perm_array.shape[1]
             )
             res_perm.extend(new_perm_array.tolist())
+            if len(res_perm) != stop:
+                print(stop)
         return res_perm
 
     @staticmethod

@@ -23,6 +23,7 @@ import numpy as np
 import pandas as pd
 import torch
 from biotite.structure import AtomArray
+from rdkit import Chem
 
 from protenix.data.msa_featurizer import MSAFeaturizer
 from protenix.data.parser import DistillationMMCIFParser, MMCIFParser
@@ -37,6 +38,18 @@ class DataPipeline(object):
     """
     DataPipeline class provides static methods to handle various data processing tasks related to bioassembly structures.
     """
+
+    @staticmethod
+    def get_lig_bonds_from_sdf(mmcif:Path):
+        lig_name = mmcif.stem[:4]
+        lig_sdf_fn = mmcif.parent.parent / f"md0805_sdfs/{lig_name}.sdf"
+        mol_noh: Chem.Mol= next(Chem.SDMolSupplier(lig_sdf_fn))
+        Chem.Kekulize(mol_noh, clearAromaticFlags=True)
+        lig_bonds = []
+        for bond in mol_noh.GetBonds():
+            bond: Chem.Bond
+            lig_bonds.append((bond.GetBeginAtomIdx(), bond.GetEndAtomIdx(), int(bond.GetBondTypeAsDouble())))
+        return lig_name, lig_bonds
 
     @staticmethod
     def get_data_from_mmcif(
@@ -64,7 +77,11 @@ class DataPipeline(object):
                 bioassembly_dict = parser.get_bioassembly()
             elif dataset == "Distillation":
                 parser = DistillationMMCIFParser(mmcif_file=mmcif)
-                bioassembly_dict = parser.get_structure_dict()
+                # print(f"{mmcif=}")
+                parser.pdb_id = mmcif.stem
+                # get bond connections from original sdfs
+                lig_name, lig_bonds = DataPipeline.get_lig_bonds_from_sdf(mmcif)
+                bioassembly_dict = parser.get_structure_dict(lig_bonds=lig_bonds, lig_name = lig_name)
             else:
                 raise NotImplementedError(
                     'Unsupported "dataset", please input either "WeightedPDB" or "Distillation".'

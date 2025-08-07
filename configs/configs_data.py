@@ -135,7 +135,7 @@ if (not os.path.exists(CCD_COMPONENTS_FILE_PATH)) or (
 ):
     CCD_COMPONENTS_FILE_PATH = os.path.join(DATA_ROOT_DIR, "components.v20240608.cif")
     CCD_COMPONENTS_RDKIT_MOL_FILE_PATH = os.path.join(
-        DATA_ROOT_DIR, "components.v20240608.cif.rdkit_mol.pkl"
+        DATA_ROOT_DIR, "components.v20250805.cif.rdkit_mol.pkl"
     )
 PDB_CLUSTER_FILE_PATH = os.path.join(DATA_ROOT_DIR, "clusters-by-entity-40.txt")
 
@@ -171,7 +171,7 @@ if (not os.path.exists(CCD_COMPONENTS_FILE_PATH)) or (
             data_cache_dir, "components.v20240608.cif"
         )
         CCD_COMPONENTS_RDKIT_MOL_FILE_PATH = os.path.join(
-            data_cache_dir, "components.v20240608.cif.rdkit_mol.pkl"
+            data_cache_dir, "components.v20250805.cif.rdkit_mol.pkl"
         )
 
 data_configs = {
@@ -191,7 +191,26 @@ data_configs = {
             "bioassembly_dict_dir": os.path.join(DATA_ROOT_DIR, "mmcif_bioassembly"),
             "indices_fpath": os.path.join(
                 DATA_ROOT_DIR,
-                "indices/weightedPDB_indices_before_2021-09-30_wo_posebusters_resolution_below_9.csv.gz",
+                "indices/weightedPDB_indices_before_2021-09-30_wo_posebusters_resolution_below_9.csv",
+            ),
+            "pdb_list": "",
+            "random_sample_if_failed": True,
+            "max_n_token": -1,  # can be used for removing data with too many tokens.
+            "use_reference_chains_only": False,
+            "exclusion": {  # do not sample the data based on ions.
+                "mol_1_type": ListValue(["ions"]),
+                "mol_2_type": ListValue(["ions"]),
+            },
+        },
+        **deepcopy(default_weighted_pdb_configs),
+    },
+    "md0805_trainingset": {
+        "base_info": {
+            "mmcif_dir": os.path.join(DATA_ROOT_DIR, "md0805_training_mmcif"),
+            "bioassembly_dict_dir": os.path.join(DATA_ROOT_DIR, "md0805_bioassembly"),
+            "indices_fpath": os.path.join(
+                DATA_ROOT_DIR,
+                "indices/md0805_training.csv",
             ),
             "pdb_list": "",
             "random_sample_if_failed": True,
@@ -232,6 +251,38 @@ data_configs = {
             ),
             "indices_fpath": os.path.join(
                 DATA_ROOT_DIR, "indices/posebusters_indices_mainchain_interface.csv"
+            ),
+            "pdb_list": "",
+            "find_pocket": True,
+            "find_all_pockets": False,
+            "max_n_token": GlobalConfigValue("test_max_n_token"),  # filter data
+        },
+        **deepcopy(default_test_configs),
+    },
+    "md0805_testset1": {
+        "base_info": {
+            "mmcif_dir": os.path.join(DATA_ROOT_DIR, "md0805_test1_mmcif"),
+            "bioassembly_dict_dir": os.path.join(
+                DATA_ROOT_DIR, "md0805_test1_bioassembly"
+            ),
+            "indices_fpath": os.path.join(
+                DATA_ROOT_DIR, "indices/md0805_test1.csv"
+            ),
+            "pdb_list": "",
+            "find_pocket": True,
+            "find_all_pockets": False,
+            "max_n_token": GlobalConfigValue("test_max_n_token"),  # filter data
+        },
+        **deepcopy(default_test_configs),
+    },
+    "md0805_testset2": {
+        "base_info": {
+            "mmcif_dir": os.path.join(DATA_ROOT_DIR, "md0805_test2_mmcif"),
+            "bioassembly_dict_dir": os.path.join(
+                DATA_ROOT_DIR, "md0805_test2_bioassembly"
+            ),
+            "indices_fpath": os.path.join(
+                DATA_ROOT_DIR, "indices/md0805_test2.csv"
             ),
             "pdb_list": "",
             "find_pocket": True,

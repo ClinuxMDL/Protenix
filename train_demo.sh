@@ -14,12 +14,17 @@
 
 export LAYERNORM_TYPE=fast_layernorm
 export USE_DEEPSPEED_EVO_ATTENTION=true
+export PYTHONPATH="."
+export PROTENIX_DATA_ROOT_DIR="/hpc-cache-pfs/home/dataland/af3-dev/release_data"
+export CUTLASS_PATH="/opt/cutlass"
+export TORCH_EXTENSIONS_DIR="/hpc-cache-pfs/home/.cache/torch_cache/torch_extensions_V100"
+export TORCH_CUDA_ARCH_LIST="7.0;8.0;9.0"
 
 python3 ./runner/train.py \
 --run_name protenix_train \
 --seed 42 \
 --base_dir ./output \
---dtype bf16 \
+--dtype fp32 \
 --project protenix \
 --use_wandb false \
 --diffusion_batch_size 48 \
@@ -35,3 +40,12 @@ python3 ./runner/train.py \
 --data.train_sets weightedPDB_before2109_wopb_nometalc_0925 \
 --data.test_sets recentPDB_1536_sample384_0925,posebusters_0925 \
 --data.posebusters_0925.base_info.max_n_token 768
+
+
+# python scripts/prepare_training_data.py -i /hpc-cache-pfs/home/dataland/af3-dev/pdbbind_md_v1/md0805_training_mmcifs -o /hpc-cache-pfs/home/dataland/af3-dev/pdbbind_md_v1/md0805_training_mmcifs_processed.csv  -b /hpc-cache-pfs/home/dataland/af3-dev/pdbbind_md_v1/md0805_training_bioassembly -d -c /hpc-cache-pfs/home/dataland/af3-dev/pdbbind_md_v1/clusters-by-entity-40-and-lig-70_train.txt -n 10
+
+
+python scripts/prepare_training_data.py -i /hpc-cache-pfs/home/dataland/af3-dev/pdbbind_md_v1/md0805_test1_mmcif -o /hpc-cache-pfs/home/dataland/af3-dev/pdbbind_md_v1/md0805_test1.csv -b /hpc-cache-pfs/home/dataland/af3-dev/pdbbind_md_v1/md0805_test1_bioassembly -d -n 10
+
+
+python scripts/prepare_training_data.py -i /hpc-cache-pfs/home/dataland/af3-dev/pdbbind_md_v1/md0805_test2_mmcif -o /hpc-cache-pfs/home/dataland/af3-dev/pdbbind_md_v1/md0805_test2.csv -b /hpc-cache-pfs/home/dataland/af3-dev/pdbbind_md_v1/md0805_test2_bioassembly -d -n 10
