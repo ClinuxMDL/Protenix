@@ -129,6 +129,7 @@ CCD_COMPONENTS_FILE_PATH = os.path.join(DATA_ROOT_DIR, "components.cif")
 CCD_COMPONENTS_RDKIT_MOL_FILE_PATH = os.path.join(
     DATA_ROOT_DIR, "components.cif.rdkit_mol.pkl"
 )
+PDB_CLUSTER_FILE_PATH = os.path.join(DATA_ROOT_DIR, "clusters-by-entity-40.txt")
 
 if (not os.path.exists(CCD_COMPONENTS_FILE_PATH)) or (
     not os.path.exists(CCD_COMPONENTS_RDKIT_MOL_FILE_PATH)
@@ -137,7 +138,6 @@ if (not os.path.exists(CCD_COMPONENTS_FILE_PATH)) or (
     CCD_COMPONENTS_RDKIT_MOL_FILE_PATH = os.path.join(
         DATA_ROOT_DIR, "components.v20250805.cif.rdkit_mol.pkl"
     )
-PDB_CLUSTER_FILE_PATH = os.path.join(DATA_ROOT_DIR, "clusters-by-entity-40.txt")
 
 
 # This is a patch in inference stage for users that do not have root permission.
@@ -150,8 +150,10 @@ PDB_CLUSTER_FILE_PATH = os.path.join(DATA_ROOT_DIR, "clusters-by-entity-40.txt")
 # protenix predict --input examples/example.json --out_dir  ./output
 # ````
 # The checkpoint and the data cache will be downloaded to the current code directory.
-if (not os.path.exists(CCD_COMPONENTS_FILE_PATH)) or (
-    not os.path.exists(CCD_COMPONENTS_RDKIT_MOL_FILE_PATH)
+if (
+    (not os.path.exists(CCD_COMPONENTS_FILE_PATH))
+    or (not os.path.exists(CCD_COMPONENTS_RDKIT_MOL_FILE_PATH))
+    or (not os.path.exists(PDB_CLUSTER_FILE_PATH))
 ):
     print("Try to find the ccd cache data in the code directory for inference.")
     current_file_path = os.path.abspath(__file__)
@@ -163,6 +165,7 @@ if (not os.path.exists(CCD_COMPONENTS_FILE_PATH)) or (
     CCD_COMPONENTS_RDKIT_MOL_FILE_PATH = os.path.join(
         data_cache_dir, "components.cif.rdkit_mol.pkl"
     )
+    PDB_CLUSTER_FILE_PATH = os.path.join(data_cache_dir, "clusters-by-entity-40.txt")
     if (not os.path.exists(CCD_COMPONENTS_FILE_PATH)) or (
         not os.path.exists(CCD_COMPONENTS_RDKIT_MOL_FILE_PATH)
     ):
