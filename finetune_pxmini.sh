@@ -20,7 +20,7 @@ export CUTLASS_PATH="/opt/cutlass"
 export TORCH_EXTENSIONS_DIR="/hpc-cache-pfs/home/.cache/torch_cache/torch_extensions_A100"
 export TORCH_CUDA_ARCH_LIST="7.0;8.0;9.0"
 # wget -P /af3-dev/release_model/ https://af3-dev.tos-cn-beijing.volces.com/release_model/protenix_base_default_v0.5.0.pt
-checkpoint_path="/hpc-cache-pfs/home/xyj/code/Protenix/release_data/checkpoint/protenix_mini_default_v0.5.0.pt"
+checkpoint_path="./release_data/checkpoint/protenix_mini_default_v0.5.0.pt"
 
 python3 ./runner/train.py \
 --model_name "protenix_mini_default_v0.5.0" \
@@ -40,6 +40,5 @@ python3 ./runner/train.py \
 --load_checkpoint_path ${checkpoint_path} \
 --load_ema_checkpoint_path ${checkpoint_path} \
 --data.train_sets md0805_trainingset \
---data.test_sets md0805_testset1,md0805_testset2 \
---data.md0805_testset1.base_info.max_n_token 500 \
---data.md0805_testset2.base_info.max_n_token 500
+--data.test_sets md0805_testset1 \
+--data.md0805_testset1.base_info.max_n_token 500

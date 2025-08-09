@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import logging
 import os
 from collections import defaultdict
@@ -49,7 +50,19 @@ class DataPipeline(object):
         for bond in mol_noh.GetBonds():
             bond: Chem.Bond
             lig_bonds.append((bond.GetBeginAtomIdx(), bond.GetEndAtomIdx(), int(bond.GetBondTypeAsDouble())))
+
         return lig_name, lig_bonds
+    
+    @staticmethod
+    def get_density_from_cluster(mmcif: Path):
+        lig_name = mmcif.stem
+        cluster_info_fn = mmcif.parent.parent / "cluster_densities.json"
+        with open(cluster_info_fn, "r") as f:
+            cluster_densities = json.load(f)
+        
+        tmp_density = cluster_densities[lig_name]
+        return float(tmp_density)
+
 
     @staticmethod
     def get_data_from_mmcif(
@@ -72,6 +85,7 @@ class DataPipeline(object):
                 bioassembly_dict (dict[str, Any]): The bioassembly dict with sequence, atom_array, and token_array.
         """
         try:
+            lig_density = 1.0
             if dataset == "WeightedPDB":
                 parser = MMCIFParser(mmcif_file=mmcif)
                 bioassembly_dict = parser.get_bioassembly()
@@ -81,6 +95,7 @@ class DataPipeline(object):
                 parser.pdb_id = mmcif.stem
                 # get bond connections from original sdfs
                 lig_name, lig_bonds = DataPipeline.get_lig_bonds_from_sdf(mmcif)
+                lig_density = DataPipeline.get_density_from_cluster(mmcif)
                 bioassembly_dict = parser.get_structure_dict(lig_bonds=lig_bonds, lig_name = lig_name)
             else:
                 raise NotImplementedError(
@@ -103,10 +118,12 @@ class DataPipeline(object):
 
             tokenizer = AtomArrayTokenizer(atom_array)
             token_array = tokenizer.get_token_array()
+
             bioassembly_dict["msa_features"] = None
             bioassembly_dict["template_features"] = None
-
             bioassembly_dict["token_array"] = token_array
+            bioassembly_dict["conf_density"] = lig_density
+
             return sample_indices_list, bioassembly_dict
 
         except Exception as e:

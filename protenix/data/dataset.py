@@ -543,6 +543,7 @@ class BaseSingleDataset(Dataset):
             for asymn_id_int in sorted(asymn_id_to_chain_id.keys())
         ]
         basic_info["chain_id"] = chain_id_list
+        basic_info["conf_density"] = torch.tensor([bioassembly_dict["conf_density"]])
 
         data = {
             "input_feature_dict": feat,

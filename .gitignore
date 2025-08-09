@@ -136,3 +136,4 @@ cython_debug/
 wandb/
 output/
 release_data/
+scripts/run_data_process.sh

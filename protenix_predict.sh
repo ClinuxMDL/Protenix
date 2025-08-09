@@ -11,14 +11,14 @@ unset __conda_setup
 ############################################################
 
 
-env_root=/hpc-cache-pfs/home/qilongwu/peptide-lead-optimization/model/molepsa_v1/env
+env_root="base"
 conda activate $env_root
 export LD_LIBRARY_PATH=${env_root}/lib:$LD_LIBRARY_PATH
 
 export http_proxy=http://sys-proxy-rd-relay.byted.org:3128 https_proxy=http://sys-proxy-rd-relay.byted.org:3128 no_proxy=code.byted.org HTTP_PROXY=http://sys-proxy-rd-relay.byted.org:3128 HTTPS_PROXY=http://sys-proxy-rd-relay.byted.org:3128
 export LAYERNORM_TYPE=fast_layernorm
 export USE_DEEPSPEED_EVO_ATTENTION=true
-export CUTLASS_PATH="/hpc-cache-pfs/home/xyj/code/cutlass"
+export CUTLASS_PATH="/opt/cutlass"
 
 N_sample=5
 N_step=200
