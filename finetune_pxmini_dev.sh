@@ -27,7 +27,6 @@ export CUTLASS_PATH="/opt/cutlass"
 # wget -P /af3-dev/release_model/ https://af3-dev.tos-cn-beijing.volces.com/release_model/protenix_base_default_v0.5.0.pt
 checkpoint_path="/voyager-hackathon/dataland/af3-dev/protenix_ckpts/protenix_mini_default_v0.5.0.pt"
 
-# wandb login --relogin cf751a8539f1387e1365a87a3dab24fc33a5e5e4
 
 python3 ./runner/train.py \
 --model_name "protenix_mini_default_v0.5.0" \

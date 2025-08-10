@@ -19,6 +19,7 @@ export PYTHONPATH="."
 export PROTENIX_DATA_ROOT_DIR="/voyager-hackathon/dataland/af3-dev/release_data"
 export CUTLASS_PATH="/opt/cutlass"
 
+## the proxy setting below is typycally used for wandb
 export http_proxy=http://100.68.163.252:3128 https_proxy=http://100.68.163.252:3128 HTTP_PROXY=http://100.68.163.252:3128 HTTPS_PROXY=http://100.68.163.252:3128
 
 # export TORCH_EXTENSIONS_DIR="/hpc-cache-pfs/home/.cache/torch_cache/torch_extensions_a100"
@@ -26,7 +27,7 @@ export http_proxy=http://100.68.163.252:3128 https_proxy=http://100.68.163.252:3
 # wget -P /af3-dev/release_model/ https://af3-dev.tos-cn-beijing.volces.com/release_model/protenix_base_default_v0.5.0.pt
 checkpoint_path="/voyager-hackathon/dataland/af3-dev/protenix_ckpts/protenix_mini_default_v0.5.0.pt"
 
-wandb login --relogin cf751a8539f1387e1365a87a3dab24fc33a5e5e4
+wandb login --relogin ## your wandb token
 
 torchrun \
 --nproc_per_node $MLP_WORKER_GPU \

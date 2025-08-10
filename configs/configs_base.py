@@ -71,14 +71,12 @@ data_configs = {
 }
 optim_configs = {
     # Optim
-    # "lr": 0.0018,
-    "lr": 0.00005,
+    "lr": 0.0018,
     "lr_scheduler": "af3",
     "warmup_steps": 10,
     "max_steps": RequiredValue(int),
     "min_lr_ratio": 0.1,
-    # "decay_every_n_steps": 50000,
-    "decay_every_n_steps": 200,
+    "decay_every_n_steps": 50000,
     "grad_clip_norm": 10,
     # Optim - Adam
     "adam": {
@@ -100,8 +98,7 @@ optim_configs = {
 # For models supporting structural constraints and ESM embeddings.
 finetune_optim_configs = {
     # Optim
-    # "lr": 0.0018,
-    "lr": 0.00005,
+    "lr": 0.0018,
     "lr_scheduler": "cosine_annealing",
     "warmup_steps": 50,
     "max_steps": 20000,
