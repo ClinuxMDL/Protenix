@@ -137,3 +137,5 @@ wandb/
 output/
 release_data/
 scripts/run_data_process.sh
+
+esm_embeddings/
