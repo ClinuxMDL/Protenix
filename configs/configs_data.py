@@ -222,6 +222,7 @@ data_configs = {
             "exclusion": {  # do not sample the data based on ions.
                 "mol_1_type": ListValue(["ions"]),
                 "mol_2_type": ListValue(["ions"]),
+                "eval_type": ListValue(["prot_prot","intra_prot","intra_ligand"]),
             },
         },
         **deepcopy(default_weighted_pdb_configs),
@@ -271,6 +272,20 @@ data_configs = {
             "indices_fpath": os.path.join(
                 DATA_ROOT_DIR, "indices/md0805_test1_ligand_prot.csv"
             ),
+            "pdb_list": "",
+            "find_pocket": True,
+            "find_all_pockets": False,
+            "max_n_token": GlobalConfigValue("test_max_n_token"),  # filter data
+        },
+        **deepcopy(default_test_configs),
+    },
+    "md0805_testset1_sampled": {
+        "base_info": {
+            "mmcif_dir": os.path.join(DATA_ROOT_DIR, "md0805_test1_mmcif"),
+            "bioassembly_dict_dir": os.path.join(
+                DATA_ROOT_DIR, "md0805_test1_bioassembly"
+            ),
+            "indices_fpath": "/voyager-hackathon/home/hms/code/Protenix/mydata/md0805_test1_ligand_prot_sampled.csv",
             "pdb_list": "",
             "find_pocket": True,
             "find_all_pockets": False,

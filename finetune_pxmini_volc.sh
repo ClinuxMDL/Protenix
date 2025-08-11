@@ -27,7 +27,9 @@ export http_proxy=http://100.68.163.252:3128 https_proxy=http://100.68.163.252:3
 # wget -P /af3-dev/release_model/ https://af3-dev.tos-cn-beijing.volces.com/release_model/protenix_base_default_v0.5.0.pt
 checkpoint_path="/voyager-hackathon/dataland/af3-dev/protenix_ckpts/protenix_mini_default_v0.5.0.pt"
 
-wandb login --relogin ## your wandb token
+export TORCH_EXTENSIONS_DIR=/voyager-hackathon/home/.cache/torch_extensions
+
+wandb login --relogin f7236ac4c913eee1f79561215edc9b95a992c351 ## your wandb token
 
 torchrun \
 --nproc_per_node $MLP_WORKER_GPU \
@@ -35,13 +37,13 @@ torchrun \
 --node_rank $MLP_ROLE_INDEX \
 --master_port $MLP_WORKER_0_PORT \
 --nnodes $MLP_WORKER_NUM \
-./runner/train.py \
+/voyager-hackathon/home/hms/code/Protenix/runner/train.py \
 --model_name "protenix_mini_default_v0.5.0" \
---run_name protenix_ft_md_new \
+--run_name volc \
 --seed 42 \
 --base_dir ./output \
 --dtype bf16 \
---project protenix_finetune_md \
+--project protenix_finetune_md_volc \
 --use_wandb true \
 --diffusion_batch_size 48 \
 --eval_interval 100 \
@@ -50,6 +52,7 @@ torchrun \
 --ema_decay 0.999 \
 --train_crop_size 384 \
 --max_steps 10000 \
+--lr 0.0018 \
 --load_checkpoint_path ${checkpoint_path} \
 --load_ema_checkpoint_path ${checkpoint_path} \
 --data.train_sets md0805_trainingset \
