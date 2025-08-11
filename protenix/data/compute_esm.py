@@ -207,11 +207,15 @@ def main():
     parser.add_argument("--model_name", type=str, choices=list(ESM_CONFIG.keys()))
     parser.add_argument("--start_id", type=int, default=0)
     parser.add_argument("--end_id", type=int, default=-1)
+    parser.add_argument("--seqs_dir", type=str, required=True)
     args = parser.parse_args()
 
     save_dir = f"./esm_embeddings/{args.model_name}"
-    pdb_seq_path = "./scripts/msa/data/pdb_seqs/pdb_seq.csv"
-    pdb_seq_label_path = "./scripts/msa/data/pdb_seqs/pdb_labels_seqs.csv"
+    # pdb_seq_path = "./scripts/msa/data/pdb_seqs/pdb_seq.csv"
+    # pdb_seq_label_path = "./scripts/msa/data/pdb_seqs/pdb_labels_seqs.csv"
+
+    pdb_seq_path = f'{args.seqs_dir}/pdb_seq.csv'
+    pdb_seq_label_path = f'{args.seqs_dir}/pdb_labels_seqs.csv'
 
     if not os.path.exists(save_dir):
         print("Make dir: ", save_dir)
