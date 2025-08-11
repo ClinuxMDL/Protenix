@@ -320,6 +320,7 @@ loss_configs = {
         "diffusion_chunk_size_outer": ValueMaybeNone(-1),
         "diffusion_sparse_loss_enable": GlobalConfigValue("loss_metrics_sparse_enable"),
         "diffusion_lddt_loss_dense": True,  # only set true in initial training for training speed
+        "diffusion_mse_loss_softmin": False,
         "resolution": {"min": 0.1, "max": 4.0},
         "weight": {
             "alpha_confidence": 1e-4,

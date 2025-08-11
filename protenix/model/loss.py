@@ -50,6 +50,26 @@ def loss_reduction(loss: torch.Tensor, method: str = "mean") -> torch.Tensor:
     return getattr(torch, method)(loss)
 
 
+import math
+class ExpTauScheduler:
+    def __init__(self, total_steps:int,
+                 tau_start:float=4.0,   # RMSD 推荐：4.0；torsion 推荐：0.8
+                 tau_end:float=0.5,     # RMSD 推荐：0.5；torsion 推荐：0.1
+                 decay_factor:float=5.0, # 衰减速度控制，越大衰减越快
+                 warmup_ratio:float=0.1):
+        self.total_steps = max(1, total_steps)
+        self.tau_start = tau_start
+        self.tau_end = tau_end
+        self.k = decay_factor / max(1, total_steps)
+        self.warmup_steps = int(self.total_steps * warmup_ratio)
+
+    def __call__(self, step:int) -> float:
+        s = max(0, min(step, self.total_steps))
+        if s <= self.warmup_steps:
+            return self.tau_start
+        # 指数衰减
+        return self.tau_end + (self.tau_start - self.tau_end) * math.exp(-self.k * (s - self.warmup_steps))
+
 class SmoothLDDTLoss(nn.Module):
     """
     Implements Algorithm 27 [SmoothLDDTLoss] in AF3
@@ -1042,6 +1062,9 @@ class MSELoss(nn.Module):
         self.weight_ligand = weight_ligand
         self.eps = eps
         self.reduction = reduction
+        self.tau = ExpTauScheduler(total_steps=1000, tau_start=1.0, tau_end=1,
+                         decay_factor=5.0, warmup_ratio=0.05) # fix tau to 1.0
+        self.training_step_interval = 0
 
     def weighted_rigid_align(
         self,
@@ -1119,6 +1142,7 @@ class MSELoss(nn.Module):
         is_rna: torch.Tensor,
         is_ligand: torch.Tensor,
         per_sample_scale: torch.Tensor = None,
+        softmin: bool = False,
     ) -> torch.Tensor:
         """MSELoss
 
@@ -1161,9 +1185,16 @@ class MSELoss(nn.Module):
         if per_sample_scale is not None:
             per_sample_weighted_mse = per_sample_weighted_mse * per_sample_scale
 
-        weighted_align_mse_loss = self.weight_mse * (per_sample_weighted_mse).mean(
-            dim=-1
-        )  # [...]
+        if softmin:
+            tau = self.tau(self.training_step_interval)
+            per_sample_weighted_mse = -tau*torch.logsumexp(-per_sample_weighted_mse/tau,dim=-1)
+            self.training_step_interval += 1
+            if self.training_step_interval % 10 == 0:
+                logging.info(f"tau: {tau} training_step_interval: {self.training_step_interval}")
+        else:
+            per_sample_weighted_mse = per_sample_weighted_mse.mean(dim=-1)
+
+        weighted_align_mse_loss = self.weight_mse * per_sample_weighted_mse  # [...]
 
         loss = loss_reduction(weighted_align_mse_loss, method=self.reduction)
 
@@ -1665,6 +1696,7 @@ class ProtenixLoss(nn.Module):
                         is_dna=feat_dict["is_dna"],
                         is_ligand=feat_dict["is_ligand"],
                         per_sample_scale=diffusion_per_sample_scale,
+                        softmin=self.configs.loss.diffusion_mse_loss_softmin,
                     ),
                 }
             )
