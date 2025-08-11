@@ -13,7 +13,7 @@ Submit to Volcano Engine using multiple GPU workers. (Performance reference: 1 G
 ```bash
 source /root/miniconda3/bin/activate
 cd {your_protenix_dir}
-bash evaluation/batch_infer_pxmini_volc.sh {your_ckpt_fn} {Test1 or Test2}
+bash evaluation/step0.sh {your_ckpt_fn} {Test1 or Test2}
 ```
 
 **Step1**

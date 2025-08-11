@@ -13,7 +13,7 @@ load_checkpoint_dir=$(dirname ${load_checkpoint_fn})
 checkpoint_name=$(basename ${load_checkpoint_fn})
 
 
-dump_dir="${load_checkpoint_dir}/results_${checkpoint_name}"
+dump_dir="${load_checkpoint_dir}/results_${test_mode}_${checkpoint_name}"
 
 N_sample=20
 seed="101,102,103,104,105"
@@ -31,11 +31,13 @@ export CUTLASS_PATH=/opt/cutlass
 export PYTHONPATH="."
 
 python3  runner/inference.py \
-    --load_checkpoint_dir ${load_checkpoint_dir} \
     --model_name ${model_name} \
     --seeds ${seed} \
     --dump_dir ${dump_dir} \
     --input_json_path ${input_json_path} \
     --sample_diffusion.N_sample ${N_sample} \
     --sample_diffusion.N_step ${N_step} \
-    --model.N_cycle ${N_cycle} 
+    --model.N_cycle ${N_cycle} \
+    --model_checkpoint_fn ${load_checkpoint_fn} 
+    # -load_checkpoint_dir ${load_checkpoint_dir} \
+    

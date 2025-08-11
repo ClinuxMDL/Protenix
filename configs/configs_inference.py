@@ -15,7 +15,7 @@
 # pylint: disable=C0114
 import os
 
-from protenix.config.extend_types import ListValue, RequiredValue
+from protenix.config.extend_types import DefaultNoneWithType, ListValue, RequiredValue
 
 current_file_path = os.path.abspath(__file__)
 current_directory = os.path.dirname(current_file_path)
@@ -30,6 +30,7 @@ inference_configs = {
     "sorted_by_ranking_score": True,
     "input_json_path": RequiredValue(str),
     "load_checkpoint_dir": os.path.join(code_directory, "./release_data/checkpoint/"),
+    "model_checkpoint_fn": DefaultNoneWithType(str),
     "num_workers": 16,
     "use_msa": True,
 }
