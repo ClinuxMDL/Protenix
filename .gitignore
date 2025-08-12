@@ -141,3 +141,4 @@ release_data/
 scripts/run_data_process.sh
 
 esm_embeddings/
+scripts/update_*.py

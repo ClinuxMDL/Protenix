@@ -100,9 +100,13 @@ class InferenceRunner(object):
         self.model = Protenix(self.configs).to(self.device)
 
     def load_checkpoint(self) -> None:
-        checkpoint_path = (
-            f"{self.configs.load_checkpoint_dir}/{self.configs.model_name}.pt"
-        )
+        print(f"{self.configs.model_checkpoint_fn=}")
+        if self.configs.model_checkpoint_fn is None:
+            checkpoint_path = f"{self.configs.load_checkpoint_dir}/{self.configs.model_name}.pt"
+        else:
+            checkpoint_path = self.configs.model_checkpoint_fn
+            self.configs.load_checkpoint_dir = os.path.dirname(checkpoint_path)
+
         if not os.path.exists(checkpoint_path):
             raise Exception(f"Given checkpoint path not exist [{checkpoint_path}]")
         self.print(
@@ -213,8 +217,14 @@ def download_infercence_cache(configs: Any) -> None:
             )
             download_from_url(tos_url, cur_cache_fpath, check_weight=False)
 
-    checkpoint_path = f"{configs.load_checkpoint_dir}/{configs.model_name}.pt"
-    checkpoint_dir = configs.load_checkpoint_dir
+    if configs.model_checkpoint_fn is None:
+        checkpoint_path = f"{configs.load_checkpoint_dir}/{configs.model_name}.pt"
+        checkpoint_dir = configs.load_checkpoint_dir
+
+    else:
+        checkpoint_path = configs.model_checkpoint_fn
+        checkpoint_dir = os.path.dirname(checkpoint_path)
+        configs.load_checkpoint_dir = checkpoint_dir
 
     if not opexists(checkpoint_path):
         os.makedirs(checkpoint_dir, exist_ok=True)

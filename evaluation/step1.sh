@@ -1,12 +1,12 @@
 #!/bin/bash
 
 # keep unchanged
-export META_CSV_PATH=folder/of/metadata_evaluation_set.csv
-export BASE_DIR_REF=folder/of/reference_dir
+export META_CSV_PATH=/voyager-hackathon/dataland/af3-dev/release_data/Reference_Test1/testset1_meta.csv
+export BASE_DIR_REF=/voyager-hackathon/dataland/af3-dev/release_data/Reference_Test1/MD
 
 # to be modified
-export BASE_DIR_PRED=folder/of/inference/results
-export PARTIAL_RESULTS_DIR=${BASE_DIR_PRED}_split
+export BASE_DIR_PRED=$1
+export PARTIAL_RESULTS_DIR=${BASE_DIR_PRED}_metrics_split
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
