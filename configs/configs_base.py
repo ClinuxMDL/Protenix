@@ -330,6 +330,7 @@ loss_configs = {
             "alpha_distogram": 3e-2,
             "alpha_bond": 0.0,  # or 1 in finetuning stages
             "smooth_lddt": 1.0,  # or 0 in finetuning stages
+            "alpha_diversity": 0.0,
         },
         "plddt": {
             "min_bin": 0,

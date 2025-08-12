@@ -567,7 +567,8 @@ class AF3Trainer(object):
                         )
                         self.ema_wrapper.restore()
 
-                if step_need_eval or is_last_step:
+                # if step_need_eval or is_last_step:
+                if step_need_eval: # we do not need to evaluate at the last step
                     self.evaluate()
                 self.global_step += 1
                 if self.global_step % self.iters_to_accumulate == 0:

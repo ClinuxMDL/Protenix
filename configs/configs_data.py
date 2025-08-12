@@ -39,6 +39,15 @@ default_test_configs = {
     },
 }
 
+default_esm_configs = {
+    "esm_fusion_rate": {
+        "msa": 0.0,
+        "esm": 0.0,
+        "both": 1.0,
+        "neither": 0.0,
+    }
+}
+
 default_weighted_pdb_configs = {
     "sampler_configs": {
         "sampler_type": "weighted",
@@ -226,6 +235,14 @@ data_configs = {
             },
         },
         **deepcopy(default_weighted_pdb_configs),
+        **deepcopy(default_esm_configs),
+        "esm": {
+        "enable": False,
+        "model_name": "esm2-3b",
+        "embedding_dim": 2560,
+        "embedding_dir": "/voyager-hackathon/home/qlwu/code/Protenix/esm_embeddings/esm2-3b",
+        "sequence_fpath": "/voyager-hackathon/home/qlwu/DATA/prepare_esm/train/pdb_labels_seqs.csv",
+    },
     },
     "recentPDB_1536_sample384_0925": {
         "base_info": {
@@ -278,6 +295,14 @@ data_configs = {
             "max_n_token": GlobalConfigValue("test_max_n_token"),  # filter data
         },
         **deepcopy(default_test_configs),
+        **deepcopy(default_esm_configs),
+        "esm": {
+        "enable": False,
+        "model_name": "esm2-3b",
+        "embedding_dim": 2560,
+        "embedding_dir": "/voyager-hackathon/home/qlwu/code/Protenix/esm_embeddings/esm2-3b",
+        "sequence_fpath": "/voyager-hackathon/home/qlwu/DATA/prepare_esm/test1/pdb_labels_seqs.csv",
+    },
     },
     "md0805_testset1_sampled": {
         "base_info": {
@@ -292,6 +317,14 @@ data_configs = {
             "max_n_token": GlobalConfigValue("test_max_n_token"),  # filter data
         },
         **deepcopy(default_test_configs),
+        **deepcopy(default_esm_configs),
+        "esm": {
+        "enable": False,
+        "model_name": "esm2-3b",
+        "embedding_dim": 2560,
+        "embedding_dir": "/voyager-hackathon/home/qlwu/code/Protenix/esm_embeddings/esm2-3b",
+        "sequence_fpath": "/voyager-hackathon/home/qlwu/DATA/prepare_esm/test1/pdb_labels_seqs.csv",
+    },
     },
     "md0805_testset2": {
         "base_info": {

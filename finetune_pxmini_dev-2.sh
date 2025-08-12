@@ -26,12 +26,11 @@ export http_proxy=http://100.68.163.252:3128 https_proxy=http://100.68.163.252:3
 # export TORCH_CUDA_ARCH_LIST="7.0;8.0;9.0"
 
 # wget -P /af3-dev/release_model/ https://af3-dev.tos-cn-beijing.volces.com/release_model/protenix_base_default_v0.5.0.pt
-# checkpoint_path="/voyager-hackathon/dataland/af3-dev/protenix_ckpts/protenix_mini_default_v0.5.0.pt"
 
 
 # python3 ./runner/train.py \
 # --model_name "protenix_mini_default_v0.5.0" \
-# --run_name dev_clean_crop1024_16140_softmin_weight_diversity \
+# --run_name dev_clean_crop1024_16140_softmin_weight \
 # --seed 42 \
 # --base_dir ./output \
 # --dtype bf16 \
@@ -52,18 +51,19 @@ export http_proxy=http://100.68.163.252:3128 https_proxy=http://100.68.163.252:3
 # --data.md0805_testset1.base_info.max_n_token 500 \
 # --data.md0805_trainingset.base_info.indices_fpath /voyager-hackathon/home/hms/code/Protenix/mydata/md0805_training_ligand_prot_clean_weights.csv \
 # --data.epoch_size 16000 \
+# --loss.diffusion_mse_loss_softmin true \
 # --data.md0805_trainingset.sampler_configs.force_recompute_weight false \
-# --loss.diffusion_mse_loss_softmin false 
+
 
 checkpoint_path="/voyager-hackathon/home/hms/code/Protenix/mydata/protenix_mini_esm_v0.5.0.pt"
 
 # CUDA_VISIBLE_DEVICES=1 python3 ./runner/train.py \
 torchrun \
---nproc_per_node 2 \
+--nproc_per_node 1 \
 --nnodes 1 \
 /voyager-hackathon/home/hms/code/Protenix/runner/train.py \
 --model_name "protenix_mini_esm_v0.5.0" \
---run_name dev_clean_16000_softmin_weight_esm \
+--run_name dev_clean_16000_softmin_weight_esm_debug \
 --seed 42 \
 --base_dir ./output \
 --dtype bf16 \
@@ -75,18 +75,16 @@ torchrun \
 --checkpoint_interval 500 \
 --ema_decay 0.999 \
 --train_crop_size 384 \
---max_steps 1000 \
+--max_steps 10 \
 --lr 0.0018 \
 --load_checkpoint_path ${checkpoint_path} \
 --load_ema_checkpoint_path ${checkpoint_path} \
 --data.train_sets md0805_trainingset \
 --data.test_sets md0805_testset1 \
 --data.md0805_testset1.base_info.max_n_token 500 \
---data.md0805_trainingset.base_info.indices_fpath /voyager-hackathon/home/hms/code/Protenix/mydata/md0805_training_ligand_prot_clean_weights.csv \
+--data.md0805_trainingset.base_info.indices_fpath /voyager-hackathon/home/qlwu/DATA/bugs_data/bug_data.csv \
 --data.epoch_size 16000 \
---loss.diffusion_mse_loss_softmin true \
---data.md0805_trainingset.sampler_configs.force_recompute_weight false \
 --data.md0805_trainingset.esm.enable true \
 --data.md0805_testset1.esm.enable true \
---data.md0805_trainingset.base_info.bioassembly_dict_dir /voyager-hackathon/dataland/af3-dev/release_data/md0805_training_bioassembly_new \
---data.md0805_testset1.base_info.bioassembly_dict_dir /voyager-hackathon/dataland/af3-dev/release_data/md0805_test1_bioassembly_new
+--loss.diffusion_mse_loss_softmin true \
+--data.md0805_trainingset.sampler_configs.force_recompute_weight false \

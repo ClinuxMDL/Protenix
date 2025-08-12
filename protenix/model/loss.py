@@ -19,7 +19,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from protenix.metrics.rmsd import weighted_rigid_align
+from protenix.metrics.rmsd import weighted_rigid_align,align_pred_to_true
 from protenix.model.modules.frames import (
     expressCoordinatesInFrame,
     gather_frame_atom_by_indices,
@@ -1064,7 +1064,7 @@ class MSELoss(nn.Module):
         self.reduction = reduction
         self.tau = ExpTauScheduler(total_steps=1000, tau_start=1.0, tau_end=1,
                          decay_factor=5.0, warmup_ratio=0.05) # fix tau to 1.0
-        self.training_step_interval = 0
+        self.training_step_interval = 0 # BUG TODO fix for global step
 
     def weighted_rigid_align(
         self,
@@ -1200,6 +1200,90 @@ class MSELoss(nn.Module):
 
         return loss
 
+
+class DiversityLoss(nn.Module):
+    """
+    Diversity loss by adding DPP
+    """
+
+    def __init__(
+        self,
+        weight_diversity: float = 1,
+        eps=1e-6,
+        reduction: str = "mean",
+    ) -> None:
+        super(DiversityLoss, self).__init__()
+        self.weight_diversity = weight_diversity
+        self.eps = eps
+        self.reduction = reduction
+
+    def _dpp_logdet_from_dist(self,dist_mat, sigma, eps=1e-6):
+        # RBF kernel
+        Kmat = torch.exp(-dist_mat / (2 * sigma * sigma))
+        # 数值稳定
+        Kmat = Kmat + eps * torch.eye(Kmat.size(-1), device=Kmat.device, dtype=Kmat.dtype)
+        sign, logdet = torch.linalg.slogdet(Kmat)
+        # 理论上 sign 应该为 +1
+        return -logdet  # 最小化 => 最大化多样性
+
+    def forward(
+        self,
+        pred_coordinate: torch.Tensor,
+        is_ligand: torch.Tensor,
+    ) -> torch.Tensor:
+        """DiversityLoss
+
+        Args:
+            pred_coordinate (torch.Tensor): the denoised coordinates from diffusion module.
+                [..., N_sample, N_atom, 3]
+            is_ligand (torch.Tensor): mol type mask.
+                [N_atom] or [..., N_atom]
+
+        Returns:
+            torch.Tensor: the diversity loss.
+                [...] is self.reduction is None else []
+        """
+        
+        if (is_ligand).sum() == 0:
+            return torch.tensor(0.0)
+        prot_mask = ~is_ligand
+        lig_mask = is_ligand
+        coord_prot = pred_coordinate[..., prot_mask, :]                  # [K,Np,3]
+        pred_ref_coord_prot = coord_prot[...,0,:,:].detach()
+        list_ligand_aligned_pred_coord = []
+        for i in range(coord_prot.size(-3)):
+            _,rot,transpose= align_pred_to_true(coord_prot[...,i,:,:],pred_ref_coord_prot)
+            aligned_pred_coord = torch.matmul(pred_coordinate[...,i,:,:], rot.transpose(-1, -2)) + transpose
+            ligand_aligned_pred_coord = aligned_pred_coord[...,lig_mask,:]
+            list_ligand_aligned_pred_coord.append(ligand_aligned_pred_coord)
+        list_ligand_aligned_pred_coord = torch.stack(list_ligand_aligned_pred_coord,dim=-3) # [K,N_ligand,3]
+
+        # x: (K, N, 3)
+        def pairwise_mse_3d(x: torch.Tensor) -> torch.Tensor:
+            K, N, C = x.shape
+            assert C == 3
+            D = N * C
+            xf = x.reshape(K, D)                    # (K, D)
+
+            # 每个样本的平方范数：(K, 1)
+            sq = (xf * xf).sum(dim=-1, keepdim=True)
+
+            # 交叉项：(K, K)，不会产生 (K, N, N)
+            cross = torch.einsum('kd,md->km', xf, xf)
+
+            # 成对平方距离：(K, K)
+            dist2 = sq + sq.transpose(0, 1) - 2.0 * cross
+            dist2 = dist2.clamp_min_(0)               # 数值稳定
+
+            # MSE = 平均到每个坐标维度
+            mse = dist2 / D
+            return mse
+        sigma = 0.5
+        dist_matrix = pairwise_mse_3d(list_ligand_aligned_pred_coord) # [K,K]
+        dpp_loss = self._dpp_logdet_from_dist(dist_matrix, sigma, eps=self.eps)
+        diversity_loss = self.weight_diversity * dpp_loss
+        diversity_loss = loss_reduction(diversity_loss, method=self.reduction)
+        return diversity_loss
 
 def calculate_atom_bespoke_lddt(
     pred_coordinate: torch.Tensor,
@@ -1446,6 +1530,7 @@ class ProtenixLoss(nn.Module):
         self.alpha_diffusion = self.configs.loss.weight.alpha_diffusion
         self.alpha_distogram = self.configs.loss.weight.alpha_distogram
         self.alpha_bond = self.configs.loss.weight.alpha_bond
+        self.alpha_diversity = self.configs.loss.weight.alpha_diversity
         self.weight_smooth_lddt = self.configs.loss.weight.smooth_lddt
 
         self.lddt_radius = {
@@ -1466,6 +1551,7 @@ class ProtenixLoss(nn.Module):
             * self.weight_smooth_lddt,  # Different from AF3 appendix eq(6), where smooth_lddt has no weight
             # distogram
             "distogram_loss": self.alpha_distogram,
+            "diversity_loss": self.alpha_diversity,
         }
 
         # Loss
@@ -1477,6 +1563,7 @@ class ProtenixLoss(nn.Module):
         self.bond_loss = BondLoss(**configs.loss.diffusion.bond)
         self.smooth_lddt_loss = SmoothLDDTLoss(**configs.loss.diffusion.smooth_lddt)
         self.distogram_loss = DistogramLoss(**configs.loss.distogram)
+        self.diversity_loss = DiversityLoss()
 
     def calculate_label(
         self,
@@ -1697,6 +1784,10 @@ class ProtenixLoss(nn.Module):
                         is_ligand=feat_dict["is_ligand"],
                         per_sample_scale=diffusion_per_sample_scale,
                         softmin=self.configs.loss.diffusion_mse_loss_softmin,
+                    ),
+                    "diversity_loss": lambda: self.diversity_loss(
+                        pred_coordinate=pred_dict["coordinate"],
+                        is_ligand=feat_dict["is_ligand"],
                     ),
                 }
             )

@@ -944,7 +944,7 @@ def get_msa_featurizer(configs, dataset_name: str, stage: str) -> Optional[Calla
         return None
 
 
-def get_esm_featurizer(configs, error_dir=None) -> Optional[Callable]:
+def get_esm_featurizer(configs, dataset_name: str, error_dir=None) -> Optional[Callable]:
     """
     Creates and returns an ESMFeaturizer object based on the provided configurations.
 
@@ -956,7 +956,7 @@ def get_esm_featurizer(configs, error_dir=None) -> Optional[Callable]:
     Returns:
         An MSAFeaturizer object if MSA is enabled in the configurations, otherwise None.
     """
-    esm_info = configs["data"].get("esm", {})
+    esm_info = configs["data"][dataset_name].get("esm", {})
     if esm_info.get("enable", False):
         return ESMFeaturizer(
             embedding_dir=esm_info.embedding_dir,
@@ -1201,7 +1201,7 @@ def get_datasets(
             "cropping_configs": config_dict["cropping_configs"],
             "error_dir": error_dir,
             "msa_featurizer": get_msa_featurizer(configs, dataset_name, stage),
-            "esm_featurizer": get_esm_featurizer(configs, error_dir),
+            "esm_featurizer": get_esm_featurizer(configs, dataset_name, error_dir),
             "template_featurizer": None,
             "lig_atom_rename": config_dict.get("lig_atom_rename", False),
             "shuffle_mols": config_dict.get("shuffle_mols", False),
