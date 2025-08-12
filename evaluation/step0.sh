@@ -21,7 +21,7 @@ N_step=5
 N_cycle=4
 
 
-model_name="protenix_mini_default_v0.5.0"
+model_name="protenix_mini_esm_v0.5.0"
 input_json_path=/voyager-hackathon/dataland/af3-dev/release_data/${test_mode}_Input_Json_Split_N_8/merged_split_${MLP_ROLE_INDEX}.json
 
 export LAYERNORM_TYPE=fast_layernorm

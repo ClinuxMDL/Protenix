@@ -31,6 +31,7 @@ inference_configs = {
     "input_json_path": RequiredValue(str),
     "load_checkpoint_dir": os.path.join(code_directory, "./release_data/checkpoint/"),
     "model_checkpoint_fn": DefaultNoneWithType(str),
+    "esm_checkpoint_fn": "/voyager-hackathon/home/qlwu/code/Protenix/release_data/checkpoint/",
     "num_workers": 16,
     "use_msa": True,
 }
