@@ -531,6 +531,7 @@ class Protenix(nn.Module):
         symmetric_permutation: SymmetricPermutation,
         inplace_safe: bool = False,
         chunk_size: Optional[int] = None,
+        mode: str = "train",
     ) -> tuple[dict[str, torch.Tensor], dict[str, Any], dict[str, Any]]:
         """
         Main training loop for the Alphafold3 model.
@@ -543,7 +544,7 @@ class Protenix(nn.Module):
             symmetric_permutation (SymmetricPermutation): Symmetric permutation object.
             inplace_safe (bool): Whether to use inplace operations safely. Defaults to False.
             chunk_size (Optional[int]): Chunk size for memory-efficient operations. Defaults to None.
-
+            mode (str): Mode of operation ('train', 'inference', 'eval'). Defaults to 'train'.
         Returns:
             tuple[dict[str, torch.Tensor], dict[str, Any], dict[str, Any]]:
                 Prediction, updated label, and log dictionaries.
@@ -717,6 +718,7 @@ class Protenix(nn.Module):
                 symmetric_permutation=symmetric_permutation,
                 inplace_safe=inplace_safe,
                 chunk_size=chunk_size,
+                mode = mode
             )
         elif mode == "inference":
             pred_dict, log_dict, time_tracker = self.main_inference_loop(
