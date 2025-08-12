@@ -37,6 +37,7 @@ python3  runner/inference.py \
     --input_json_path ${input_json_path} \
     --sample_diffusion.N_sample ${N_sample} \
     --sample_diffusion.N_step ${N_step} \
+    --sample_diffusion.step_scale_eta 2.0 \
     --model.N_cycle ${N_cycle} \
     --model_checkpoint_fn ${load_checkpoint_fn} 
     # -load_checkpoint_dir ${load_checkpoint_dir} \
