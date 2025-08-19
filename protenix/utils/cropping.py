@@ -422,10 +422,10 @@ class CropData(object):
         token_array: TokenArray,
         atom_array: AtomArray,
         method_weights: list[float] = [0.2, 0.4, 0.4],
-        contiguous_crop_complete_lig: bool = False,
-        spatial_crop_complete_lig: bool = False,
-        drop_last: bool = False,
-        remove_metal: bool = False,
+        contiguous_crop_complete_lig: bool = True,
+        spatial_crop_complete_lig: bool = True,
+        drop_last: bool = True,
+        remove_metal: bool = True,
     ) -> None:
         """
         Args:

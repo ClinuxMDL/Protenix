@@ -15,6 +15,7 @@
 import os
 
 import torch
+import numpy as np
 
 from protenix.utils.permutation import atom_permutation, chain_permutation
 
@@ -37,26 +38,10 @@ class SymmetricPermutation(object):
             self.chain_error_dir = None
             self.atom_error_dir = None
 
-    def permute_label_to_match_mini_rollout(
-        self,
-        mini_coord: torch.Tensor,
-        input_feature_dict: dict,
-        label_dict: dict,
-        label_full_dict: dict,
-    ):
+    def permute_label_to_match_mini_rollout_single(self, mini_coord, input_feature_dict, label_full_dict, label_dict, idx):
         """
-        Apply permutation to label structure to match the predicted structure.
-        This is mainly used to align label structure to the mini-rollout structure during training.
-
-        Args:
-            mini_coord (torch.Tensor): Coordinates of the predicted mini-rollout structure.
-            input_feature_dict (dict): Input feature dictionary.
-            label_dict (dict): Label dictionary.
-            label_full_dict (dict): Full label dictionary.
+        Process permutation for a single structure (coordinates with dim=2)
         """
-
-        assert mini_coord.dim() == 3
-
         log_dict = {}
         # 1. ChainPermutation: permute ground-truth chains to match mini-rollout prediction
         permuted_label_dict, chain_perm_log_dict, _, _ = chain_permutation.run(
@@ -71,7 +56,7 @@ class SymmetricPermutation(object):
             label_dict.update(permuted_label_dict)
             log_dict.update(
                 {
-                    f"minirollout_perm/Chain-{k}": v
+                    f"minirollout_perm/Chain-{k}-{idx}": v
                     for k, v in chain_perm_log_dict.items()
                 }
             )
@@ -79,7 +64,7 @@ class SymmetricPermutation(object):
             # Log only, not update the label_dict
             log_dict.update(
                 {
-                    f"minirollout_perm/Chain.F-{k}": v
+                    f"minirollout_perm/Chain.F-{k}-{idx}": v
                     for k, v in chain_perm_log_dict.items()
                 }
             )
@@ -99,26 +84,89 @@ class SymmetricPermutation(object):
         if self.configs.atom_permutation.train.mini_rollout:
             label_dict.update(permuted_label_dict)
             log_dict.update(
-                {f"minirollout_perm/Atom-{k}": v for k, v in atom_perm_log_dict.items()}
+                {f"minirollout_perm/Atom-{k}-{idx}": v for k, v in atom_perm_log_dict.items()}
             )
         else:
             # Log only, not update the label_dict
             log_dict.update(
                 {
-                    f"minirollout_perm/Atom.F-{k}": v
+                    f"minirollout_perm/Atom.F-{k}-{idx}": v
                     for k, v in atom_perm_log_dict.items()
                 }
             )
 
         return label_dict, log_dict
 
-    def permute_diffusion_sample_to_match_label(
+    def permute_label_to_match_mini_rollout(self, mini_coord, input_feature_dict, label_dict, label_full_dict):
+        """
+        Run permutation processing for coordinates with different dimensions
+        """
+        assert mini_coord.dim() == 3
+        # Check coordinates dimension
+        coord_shape = label_full_dict["coordinate"].shape
+        
+        if len(coord_shape) == 2:
+            # Single structure case (original logic)
+            return self.permute_label_to_match_mini_rollout_single(mini_coord, input_feature_dict, label_full_dict, label_dict, 0)
+        
+        elif len(coord_shape) == 3:
+            # Batch case - process each batch separately
+            batch_size = coord_shape[0]
+            batch_label_dicts = []
+            batch_log_dicts = []
+            
+            for i in range(batch_size):
+                # Extract single batch data
+                batch_mini_coord = mini_coord
+                batch_input_feature_dict = {
+                    k: v[i] if k == 'coordinate' else v 
+                    for k, v in input_feature_dict.items()
+                }
+                batch_label_full_dict = {
+                    k: v[i] if k == 'coordinate' else v 
+                    for k, v in label_full_dict.items()
+                }
+                batch_label_dict = {
+                    k: v[i] if k == 'coordinate' else v 
+                    for k, v in label_dict.items()
+                }
+
+                # Process single batch
+                processed_label_dict, processed_log_dict = self.permute_label_to_match_mini_rollout_single(
+                    batch_mini_coord, batch_input_feature_dict, batch_label_full_dict, batch_label_dict, i
+                )
+                
+                batch_label_dicts.append(processed_label_dict)
+                batch_log_dicts.append(processed_log_dict)
+            
+            # Combine batch results
+            combined_label_dict = {}
+            combined_log_dict = {}
+            
+            # Combine label_dicts
+            for key in batch_label_dicts[0].keys():
+                if key == 'coordinate':
+                    combined_label_dict[key] = torch.cat([d[key].unsqueeze(0) for d in batch_label_dicts], dim=0)
+                else:
+                    combined_label_dict[key] = batch_label_dicts[0][key]
+            
+            # Combine log_dicts (average across batches)
+            for i in range(len(batch_log_dicts)):
+                combined_log_dict.update(batch_log_dicts[i])
+            
+            return combined_label_dict, combined_log_dict
+        
+        else:
+            raise ValueError(f"Unsupported coordinates dimension: {len(coord_shape)}. Expected 2 or 3 dimensions.")
+
+    def permute_diffusion_sample_to_match_label_single(
         self,
         input_feature_dict: dict,
         pred_dict: dict,
         label_dict: dict,
         stage: str,
         permute_by_pocket: bool = False,
+        idx: int = 0,
     ):
         """
         Apply per-sample permutation to predicted structures to correct symmetries.
@@ -165,7 +213,7 @@ class SymmetricPermutation(object):
                 pred_dict.update(permuted_pred_dict)
                 log_dict.update(
                     {
-                        f"sample_perm/Chain-{k}": v
+                        f"sample_perm/Chain-{k}-{idx}": v
                         for k, v in chain_perm_log_dict.items()
                     }
                 )
@@ -173,7 +221,7 @@ class SymmetricPermutation(object):
                 # Log only, not update the pred_dict.
                 log_dict.update(
                     {
-                        f"sample_perm/Chain.F-{k}": v
+                        f"sample_perm/Chain.F-{k}-{idx}": v
                         for k, v in chain_perm_log_dict.items()
                     }
                 )
@@ -230,15 +278,53 @@ class SymmetricPermutation(object):
         if self.configs.atom_permutation.get(stage).diffusion_sample:
             pred_dict.update(permuted_pred_dict)
             log_dict.update(
-                {f"sample_perm/Atom-{k}": v for k, v in atom_perm_log_dict.items()}
+                {f"sample_perm/Atom-{k}-{idx}": v for k, v in atom_perm_log_dict.items()}
             )
         else:
             # Log only, not update the pred_dict.
             log_dict.update(
-                {f"sample_perm/Atom.F-{k}": v for k, v in atom_perm_log_dict.items()}
+                {f"sample_perm/Atom.F-{k}-{idx}": v for k, v in atom_perm_log_dict.items()}
             )
 
         return pred_dict, log_dict, permute_pred_indices, permute_label_indices
+    
+    def permute_diffusion_sample_to_match_label(self, input_feature_dict, pred_dict, label_dict, stage, permute_by_pocket=False):
+        if label_dict["coordinate"].dim() == 2:
+            return self.permute_diffusion_sample_to_match_label_single(input_feature_dict, pred_dict, label_dict, stage, permute_by_pocket, 0)
+        else:
+            batch_pred_dicts = []
+            batch_log_dicts = []
+            batch_permute_pred_indices = []
+            batch_permute_label_indices = []
+            batch_size = label_dict["coordinate"].shape[0]
+            for i in range(batch_size):
+                batch_input_feature_dict = {
+                    k: v[i] if k == 'coordinate' else v 
+                    for k, v in input_feature_dict.items()
+                }
+                batch_pred_dict = {
+                    k: v[i] if k == 'coordinate' else v 
+                    for k, v in pred_dict.items()
+                }
+                batch_label_dict = {
+                    k: v[i] if k == 'coordinate' else v 
+                    for k, v in label_dict.items()
+                }
+                processed_pred_dict, processed_log_dict, permute_pred_indices, permute_label_indices = self.permute_diffusion_sample_to_match_label_single(batch_input_feature_dict, batch_pred_dict, batch_label_dict, stage, permute_by_pocket, i)
+                batch_pred_dicts.append(processed_pred_dict)
+                batch_log_dicts.append(processed_log_dict)
+                batch_permute_pred_indices.append(permute_pred_indices)
+                batch_permute_label_indices.append(permute_label_indices)
+            combined_pred_dict = {}
+            for key in batch_pred_dicts[0].keys():
+                if key == 'coordinate':
+                    combined_pred_dict[key] = torch.cat([d[key].unsqueeze(0) for d in batch_pred_dicts], dim=0)
+                else:
+                    combined_pred_dict[key] = batch_pred_dicts[0][key]
+            combined_log_dict = {}
+            for i in range(len(batch_log_dicts)):
+                combined_log_dict.update(batch_log_dicts[i])
+            return combined_pred_dict, combined_log_dict, batch_permute_pred_indices, batch_permute_label_indices
 
     @staticmethod
     def get_chain_mask_from_atom_mask(

@@ -117,7 +117,7 @@ model_configs = {
     "max_atoms_per_token": 24,  # DNA G max_atoms = 23
     "no_bins": 64,
     "sigma_data": 16.0,
-    "diffusion_batch_size": 48,
+    "diffusion_batch_size": 10,
     "diffusion_chunk_size": ValueMaybeNone(4),  # chunksize of diffusion_batch_size
     "blocks_per_ckpt": ValueMaybeNone(
         1

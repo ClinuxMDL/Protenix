@@ -112,7 +112,7 @@ class SmoothLDDTLoss(nn.Module):
             torch.Tensor: the smooth lddt loss
                 [...] if reduction is None else []
         """
-        c_lm = lddt_mask.bool().unsqueeze(dim=-3).detach()  # [..., 1, N_atom, N_atom]
+        c_lm = lddt_mask.bool().detach()  # [..., 1, N_atom, N_atom] # @wenjuantan
         # Compute distance error
         # [...,  N_sample , N_atom, N_atom]
         if diffusion_chunk_size is None:
@@ -128,7 +128,7 @@ class SmoothLDDTLoss(nn.Module):
                 N_sample % diffusion_chunk_size != 0
             )
             for i in range(no_chunks):
-                lddt_i = checkpoint_fn(
+                lddt_i = checkpoint_fn( ##wenjuan.tan
                     self._chunk_forward,
                     pred_distance[
                         ...,
@@ -136,7 +136,12 @@ class SmoothLDDTLoss(nn.Module):
                         :,
                         :,
                     ],
-                    true_distance,
+                    true_distance[
+                       ...,
+                        i * diffusion_chunk_size : (i + 1) * diffusion_chunk_size,
+                        :,
+                        :,                        
+                    ],
                     c_lm,
                 )
                 lddt.append(lddt_i)
@@ -196,14 +201,24 @@ class SmoothLDDTLoss(nn.Module):
                     i * diffusion_chunk_size : (i + 1) * diffusion_chunk_size, :, :
                 ].index_select(-2, lddt_indices[1])
 
+                true_coords_i_l = true_coordinate[
+                    i * diffusion_chunk_size : (i + 1) * diffusion_chunk_size, :, :
+                ].index_select(-2, lddt_indices[0])
+                true_coords_i_m = true_coordinate[
+                    i * diffusion_chunk_size : (i + 1) * diffusion_chunk_size, :, :
+                ].index_select(-2, lddt_indices[1])
+
                 # \delta x_{lm} and \delta x_{lm}^{GT} in the Algorithm 27
                 pred_distance_sparse_i_lm = torch.norm(
+                    pred_coords_i_l - pred_coords_i_m, p=2, dim=-1
+                )
+                true_distance_sparse_i_lm = torch.norm(
                     pred_coords_i_l - pred_coords_i_m, p=2, dim=-1
                 )
                 lddt_i = checkpoint_fn(
                     self._chunk_forward,
                     pred_distance_sparse_i_lm,
-                    true_distance_sparse_lm,
+                    true_distance_sparse_i_lm,
                 )
                 lddt.append(lddt_i)
             lddt = torch.cat(lddt, dim=-1)
@@ -233,7 +248,7 @@ class SmoothLDDTLoss(nn.Module):
             torch.Tensor: the smooth lddt loss
                 [...] if reduction is None else []
         """
-        c_lm = lddt_mask.bool().unsqueeze(dim=-3).detach()  # [..., 1, N_atom, N_atom]
+        c_lm = lddt_mask.bool().detach()  # [..., 1, N_atom, N_atom]
         # Compute distance error
         # [...,  N_sample , N_atom, N_atom]
         true_distance = torch.cdist(true_coordinate, true_coordinate)
@@ -262,10 +277,22 @@ class SmoothLDDTLoss(nn.Module):
                         :,
                     ],
                 )
+                true_distance_i = torch.cdist(
+                    true_coordinate[
+                        i * diffusion_chunk_size : (i + 1) * diffusion_chunk_size,
+                        :,
+                        :,
+                    ],
+                    true_coordinate[
+                        i * diffusion_chunk_size : (i + 1) * diffusion_chunk_size,
+                        :,
+                        :,
+                    ],
+                )
                 lddt_i = checkpoint_fn(
                     self._chunk_forward,
                     pred_distance_i,
-                    true_distance,
+                    true_distance_i,
                     c_lm,
                 )
                 lddt.append(lddt_i)
@@ -294,7 +321,7 @@ class BondLoss(nn.Module):
     def _chunk_forward(self, pred_distance, true_distance, bond_mask):
         # Distance squared error
         # [...,  N_sample , N_atom, N_atom]
-        dist_squared_err = (pred_distance - true_distance.unsqueeze(dim=-3)) ** 2
+        dist_squared_err = (pred_distance - true_distance) ** 2
         bond_loss = torch.sum(dist_squared_err * bond_mask, dim=(-1, -2)) / torch.sum(
             bond_mask + self.eps, dim=(-1, -2)
         )  # [..., N_sample]
@@ -355,7 +382,12 @@ class BondLoss(nn.Module):
                         :,
                         :,
                     ],
-                    true_distance,
+                    true_distance[
+                        ...,
+                        i * diffusion_chunk_size : (i + 1) * diffusion_chunk_size,
+                        :,
+                        :,
+                    ],
                     bond_mask,
                 )
                 bond_loss.append(bond_loss_i)
@@ -439,6 +471,7 @@ def compute_lddt_mask(
             [..., N_atom, N_atom]
     """
     # Restrict to bespoke inclusion radius
+    true_distance = true_distance.mean(dim=-3)
     is_nucleotide_mask = is_nucleotide.bool()
     c_lm = (true_distance < is_nucleotide_threshold) * is_nucleotide_mask[..., None] + (
         true_distance < is_not_nucleotide_threshold
@@ -587,7 +620,6 @@ class DistogramLoss(nn.Module):
                 coordinate_mask=coordinate_mask,
                 rep_atom_mask=rep_atom_mask,
             )
-
         errors = softmax_cross_entropy(
             logits=logits,
             labels=true_bins,
@@ -668,13 +700,14 @@ class PDELoss(nn.Module):
         rep_atom_mask = rep_atom_mask.bool()
         true_coordinate = true_coordinate[..., rep_atom_mask, :]  # [..., N_token, 3]
         gt_dist = cdist(true_coordinate, true_coordinate)  # [..., N_token, N_token]
+        gt_dist = gt_dist.mean(dim=-3)
         # Predicted distance
         pred_coordinate = pred_coordinate[..., rep_atom_mask, :]
         pred_dist = cdist(
             pred_coordinate, pred_coordinate
         )  # [..., N_sample, N_token, N_token]
         # Distance error
-        dist_error = torch.abs(pred_dist - gt_dist.unsqueeze(dim=-3))
+        dist_error = torch.abs(pred_dist - gt_dist.unsqueeze(-3))
 
         # Assign distance error to bins
         true_bins = torch.sum(
@@ -768,8 +801,9 @@ def compute_alignment_error_squared(
     x_transformed_true = expressCoordinatesInFrame(
         coordinate=true_coordinate, frames=true_frames
     )  # [..., N_frame, N_token, 3]
+    x_transformed_true =  x_transformed_true.mean(dim=-4)  
     squared_pae = torch.sum(
-        (x_transformed_pred - x_transformed_true.unsqueeze(dim=-4)) ** 2, dim=-1
+        (x_transformed_pred - x_transformed_true.unsqueeze(-4)) ** 2, dim=-1
     )  # [..., N_sample, N_frame, N_token]
     return squared_pae
 
@@ -1084,9 +1118,9 @@ class MSELoss(nn.Module):
         pred_coordinate = pred_coordinate * coordinate_mask[..., None, :, None]
 
         # Reshape to add "N_sample" dimension
-        true_coordinate = expand_at_dim(
-            true_coordinate, dim=-3, n=N_sample
-        )  # [..., N_sample, N_atom, 3]
+        #true_coordinate = expand_at_dim(
+        #    true_coordinate, dim=-3, n=N_sample
+        #)  # [..., N_sample, N_atom, 3]
         if len(weight.shape) > 1:
             weight = expand_at_dim(
                 weight, dim=-2, n=N_sample
@@ -1207,8 +1241,9 @@ def calculate_atom_bespoke_lddt(
     true_d_lm = torch.cdist(
         true_coordinate, true_coordinate[..., atom_m_mask, :]
     )  # [..., N_atom, N_atom(m)]
+    true_d_lm = true_d_lm.mean(dim=-3).unsqueeze(-3)
     delta_d_lm = torch.abs(
-        pred_d_lm - true_d_lm.unsqueeze(dim=-3)
+        pred_d_lm - true_d_lm
     )  # [..., N_sample, N_atom, N_atom(m)]
     # Pair-wise lddt
     thresholds = [0.5, 1, 2, 4]
@@ -1231,9 +1266,8 @@ def calculate_atom_bespoke_lddt(
     diagonal_mask = ((1 - torch.eye(n=N_atom)).bool().to(true_d_lm.device))[
         ..., atom_m_mask
     ]  # [N_atom, N_atom(m)]
-    pair_mask = (locality_mask * diagonal_mask).unsqueeze(
-        dim=-3
-    )  # [..., 1, N_atom, N_atom(m)]
+    pair_mask = (locality_mask * diagonal_mask)
+      # [..., 1, N_atom, N_atom(m)]
     per_atom_lddt = torch.sum(
         lddt_lm * pair_mask, dim=-1, keepdim=True
     )  # [...,  N_sample, N_atom, 1]
@@ -1845,3 +1879,55 @@ class ProtenixLoss(nn.Module):
                 losses[key] /= N_sample
 
         return cum_loss, losses
+
+if __name__ == "__main__":
+    N_sample = 10
+    N_atom = 128
+    pred_distance = torch.rand(2, N_sample, N_atom, N_atom)
+    true_distance = torch.rand(2, N_sample, N_atom, N_atom)
+    distance_mask = torch.rand([N_atom,N_atom])
+    lddt_mask = torch.rand([N_atom,N_atom])
+    bond_mask = torch.rand([N_atom,N_atom])
+    smoothlddtloss = SmoothLDDTLoss()
+    sloss = smoothlddtloss(pred_distance, true_distance, distance_mask, lddt_mask)
+    print(sloss)
+    bondloss = BondLoss()
+    bloss = bondloss(pred_distance, true_distance, distance_mask, bond_mask)
+    print(bloss)
+    pdeloss  = PDELoss()
+    N_token = 128
+    no_bins = 64
+    logits = torch.rand(N_sample, N_token, N_token, no_bins)
+    pred_coordinate = torch.rand(2,N_sample,N_atom,3)
+    true_coordinate = torch.rand(2,N_sample,N_atom,3)
+    coordinate_mask = torch.rand(N_atom)
+    rep_atom_mask = torch.rand(N_atom)
+    ploss = pdeloss(logits,pred_coordinate,true_coordinate,coordinate_mask,rep_atom_mask)
+    print(ploss)
+    paeloss = PAELoss()
+    frame_atom_index = torch.stack([torch.randperm(N_atom)[:3] for _ in range(N_token)], dim=0)
+    has_frame = torch.randint(0, 2, (N_token,), dtype=torch.bool)
+    paloss = paeloss(logits,pred_coordinate,true_coordinate,coordinate_mask,frame_atom_index,rep_atom_mask,has_frame)
+    print(paloss)
+    distogramloss = DistogramLoss()
+    rep_atom_mask = torch.ones(N_atom, dtype=torch.bool)
+    dloss = distogramloss(logits, true_coordinate, coordinate_mask, rep_atom_mask)
+    print(dloss)
+
+    mseloss = MSELoss()
+    is_dna = torch.randint(0, 2, (N_atom,), dtype=torch.bool)
+    is_rna = torch.randint(0, 2, (N_atom,), dtype=torch.bool)
+    is_ligand = torch.randint(0, 2, (N_atom,), dtype=torch.bool)
+    per_sample_scale = torch.randint(0, 2, (N_sample,), dtype=torch.bool)
+    mloss = mseloss(pred_coordinate,true_coordinate,coordinate_mask,is_dna,is_rna,is_ligand,per_sample_scale)
+    print(mloss)
+    plddtloss = PLDDTLoss()
+    is_ncleotide = torch.randint(0, 2, (N_atom,), dtype=torch.bool)
+    is_polymer = torch.randint(0, 2, (N_atom,), dtype=torch.bool)
+    rep_atom_mask = torch.zeros(N_atom, dtype=torch.bool)
+    no_bins = 50
+    N_token=128
+    logits = torch.rand(N_sample, N_atom, no_bins)
+    pldloss = plddtloss(logits, pred_coordinate, true_coordinate, coordinate_mask, is_ncleotide, is_polymer, rep_atom_mask)
+    print(pldloss)
+

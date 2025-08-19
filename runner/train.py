@@ -325,6 +325,10 @@ class AF3Trainer(object):
     ) -> tuple[torch.Tensor, dict, dict]:
         assert mode in ["train", "eval"]
 
+        if batch["label_dict"]["coordinate"].dim() == 2:
+            batch["label_dict"]["coordinate"] = batch["label_dict"]["coordinate"].unsqueeze(0)
+            batch["label_full_dict"]["coordinate"] = batch["label_full_dict"]["coordinate"].unsqueeze(0)
+
         loss, loss_dict = autocasting_disable_decorator(self.configs.skip_amp.loss)(
             self.loss
         )(

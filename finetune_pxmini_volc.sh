@@ -27,7 +27,7 @@ export http_proxy=http://100.68.163.252:3128 https_proxy=http://100.68.163.252:3
 # wget -P /af3-dev/release_model/ https://af3-dev.tos-cn-beijing.volces.com/release_model/protenix_base_default_v0.5.0.pt
 checkpoint_path="/voyager-hackathon/dataland/af3-dev/protenix_ckpts/protenix_mini_default_v0.5.0.pt"
 
-wandb login --relogin ## your wandb token
+wandb login --relogin 4d100867e78c2a49aa4042461d5856bbace5b972
 
 torchrun \
 --nproc_per_node $MLP_WORKER_GPU \
@@ -49,7 +49,7 @@ torchrun \
 --checkpoint_interval 400 \
 --ema_decay 0.999 \
 --train_crop_size 384 \
---max_steps 10000 \
+--max_steps 100000 \
 --load_checkpoint_path ${checkpoint_path} \
 --load_ema_checkpoint_path ${checkpoint_path} \
 --data.train_sets md0805_trainingset \

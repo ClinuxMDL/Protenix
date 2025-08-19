@@ -37,7 +37,7 @@ python3 ./runner/train.py \
 --project protenix_finetune_md \
 --use_wandb false \
 --diffusion_batch_size 48 \
---eval_interval 50 \
+--eval_interval 10 \
 --log_interval 5 \
 --checkpoint_interval 400 \
 --ema_decay 0.999 \

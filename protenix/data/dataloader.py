@@ -20,7 +20,7 @@ import torch.distributed as dist
 from ml_collections.config_dict import ConfigDict
 from torch.utils.data import DataLoader, DistributedSampler, Sampler
 
-from protenix.data.dataset import Dataset, get_datasets
+from protenix.data.dataset_md import Dataset, get_datasets
 from protenix.utils.logger import get_logger
 from protenix.utils.torch_utils import collate_fn_first
 

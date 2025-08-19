@@ -633,7 +633,10 @@ class Protenix(nn.Module):
         # Denoising: use permuted coords to generate noisy samples and perform denoising
         # x_denoised: [..., N_sample, N_atom, 3]
         # x_noise_level: [..., N_sample]
-        N_sample = self.diffusion_batch_size
+        if label_dict["coordinate"].dim() == 3:
+            N_sample = label_dict["coordinate"].shape[0]
+        else:
+            N_sample = self.diffusion_batch_size
         drop_conditioning = (
             random.random() < self.configs.model.condition_embedding_drop_rate
         )

@@ -279,7 +279,7 @@ def sample_diffusion_training(
         torch.Tensor: the denoised coordinates of x in inference stage
             [..., N_sample, N_atom, 3]
     """
-    batch_size_shape = label_dict["coordinate"].shape[:-2]
+    batch_size_shape = label_dict["coordinate"].shape[:-2] if label_dict["coordinate"].dim() == 2 else label_dict["coordinate"].shape[:-3]
     device = label_dict["coordinate"].device
     dtype = label_dict["coordinate"].dtype
     # Areate N_sample versions of the input structure by randomly rotating and translating
@@ -290,7 +290,14 @@ def sample_diffusion_training(
     ).to(
         dtype
     )  # [..., N_sample, N_atom, 3]
-
+    if label_dict["coordinate"].dim() == 3:
+       # [..., N_sample, N_atom, 3], random select one structure on dim=-3
+        x_gt_augment = x_gt_augment[
+            torch.arange(x_gt_augment.shape[0]), 
+            torch.randint(0, x_gt_augment.shape[-3], (x_gt_augment.shape[0],)), 
+            :, 
+            :
+        ]
     # Add independent noise to each structure
     # sigma: independent noise-level [..., N_sample]
     sigma = noise_sampler(size=(*batch_size_shape, N_sample), device=device).to(dtype)

@@ -302,8 +302,62 @@ class DataPipeline(object):
                 cropped_msa_features (dict[str, Any]): The cropped msa features.
                 cropped_template_features (dict[str, Any]): The cropped template features.
         """
-        if crop_size <= 0:
-            selected_indices = None
+        crop_method, selected_indices, reference_token_index = DataPipeline.get_crop_indices(
+            one_sample=one_sample,
+            bioassembly_dict=bioassembly_dict,
+            crop_size=crop_size,
+            method_weights=method_weights,
+            contiguous_crop_complete_lig=contiguous_crop_complete_lig,
+            spatial_crop_complete_lig=spatial_crop_complete_lig,
+            drop_last=drop_last,
+            remove_metal=remove_metal,
+        )
+
+        ref_chain_indices = DataPipeline._map_ref_chain(
+            one_sample=one_sample, bioassembly_dict=bioassembly_dict
+        )
+
+        crop_object = CropData(
+            crop_size=crop_size,
+            ref_chain_indices=ref_chain_indices,
+            token_array=bioassembly_dict["token_array"],
+            atom_array=bioassembly_dict["atom_array"],
+            method_weights=method_weights,
+            contiguous_crop_complete_lig=contiguous_crop_complete_lig,
+            spatial_crop_complete_lig=spatial_crop_complete_lig,
+            drop_last=drop_last,
+            remove_metal=remove_metal,
+        )
+
+        cropped_token_array, cropped_atom_array, cropped_msa_features, cropped_template_features = DataPipeline.crop_by_indices(
+            crop_method=crop_method,
+            crop_object=crop_object,
+            bioassembly_dict=bioassembly_dict,
+            selected_indices=selected_indices,
+            msa_featurizer=msa_featurizer,
+            template_featurizer=template_featurizer,
+        )
+
+        return (
+            crop_method,
+            cropped_token_array,
+            cropped_atom_array,
+            cropped_msa_features,
+            cropped_template_features,
+            reference_token_index,
+        )
+    
+    @staticmethod
+    def crop_by_indices(
+        crop_method: str,
+        crop_object: CropData,
+        bioassembly_dict: dict[str, Any],
+        selected_indices: np.ndarray,
+        msa_featurizer: Optional[MSAFeaturizer],
+        template_featurizer: None,
+    ) -> tuple[TokenArray, AtomArray, dict[str, Any], dict[str, Any]]:
+
+        if crop_method == 'no_crop':
             # Prepare msa
             msa_features = DataPipeline.get_msa_raw_features(
                 bioassembly_dict=bioassembly_dict,
@@ -317,13 +371,85 @@ class DataPipeline(object):
                 template_featurizer=template_featurizer,
             )
             return (
-                "no_crop",
                 bioassembly_dict["token_array"],
                 bioassembly_dict["atom_array"],
                 msa_features or {},
                 template_features or {},
-                -1,
             )
+      
+        # Prepare msa
+        msa_features = DataPipeline.get_msa_raw_features(
+            bioassembly_dict=bioassembly_dict,
+            selected_indices=selected_indices,
+            msa_featurizer=msa_featurizer,
+        )
+        # Prepare template
+        template_features = DataPipeline.get_template_raw_features(
+            bioassembly_dict=bioassembly_dict,
+            selected_indices=selected_indices,
+            template_featurizer=template_featurizer,
+        )
+
+        (
+            cropped_token_array,
+            cropped_atom_array,
+            cropped_msa_features,
+            cropped_template_features,
+        ) = crop_object.crop_by_indices(
+            selected_token_indices=selected_indices,
+            msa_features=msa_features,
+            template_features=template_features,
+        )
+
+        if crop_method == "ContiguousCropping":
+            resovled_atom_num = cropped_atom_array.is_resolved.sum()
+            # The criterion of “more than 4 atoms” is chosen arbitrarily.
+            assert (
+                resovled_atom_num > 4
+            ), f"{resovled_atom_num=} <= 4 after ContiguousCropping"
+
+        return (
+            cropped_token_array,
+            cropped_atom_array,
+            cropped_msa_features,
+            cropped_template_features,
+        )
+    
+    @staticmethod
+    def get_crop_indices(
+        one_sample: pd.Series,
+        bioassembly_dict: dict[str, Any],
+        crop_size: int,
+        method_weights: list[float] = [0.2, 0.4, 0.4],
+        contiguous_crop_complete_lig: bool = True,
+        spatial_crop_complete_lig: bool = True,
+        drop_last: bool = True,
+        remove_metal: bool = True,
+    ) -> tuple[str, TokenArray, AtomArray, dict[str, Any], dict[str, Any]]:
+        """
+        Crop data based on the crop size and reference chain indices.
+
+        Args:
+            one_sample (pd.Series): A dict of one chain or interface from indices list.
+            bioassembly_dict (dict[str, Any]): A dict of bioassembly dict with sequence, atom_array and token_array.
+            crop_size (int): the crop size.
+            msa_featurizer (MSAFeaturizer): Default to an empty replacement for msa featurizer.
+            template_featurizer (None): Placeholder for the template featurizer.
+            method_weights (list[float]): The weights corresponding to these three cropping methods:
+                                          ["ContiguousCropping", "SpatialCropping", "SpatialInterfaceCropping"].
+            contiguous_crop_complete_lig (bool): Whether to crop the complete ligand in ContiguousCropping method.
+            spatial_crop_complete_lig (bool): Whether to crop the complete ligand in SpatialCropping method.
+            drop_last (bool): Whether to drop the last fragment in ContiguousCropping.
+            remove_metal (bool): Whether to remove metal atoms from the crop.
+
+        Returns:
+            tuple[str, TokenArray, AtomArray, dict[str, Any], dict[str, Any]]:
+                crop_method (str): The crop method.
+                crop_indices (np.ndarray): The crop indices.
+                reference_token_index (int): The reference token index.
+        """
+        if crop_size <= 0:
+            return 'no_crop', None, -1
 
         ref_chain_indices = DataPipeline._map_ref_chain(
             one_sample=one_sample, bioassembly_dict=bioassembly_dict
@@ -346,45 +472,7 @@ class DataPipeline(object):
         selected_indices, reference_token_index = crop.get_crop_indices(
             crop_method=crop_method
         )
-        # Prepare msa
-        msa_features = DataPipeline.get_msa_raw_features(
-            bioassembly_dict=bioassembly_dict,
-            selected_indices=selected_indices,
-            msa_featurizer=msa_featurizer,
-        )
-        # Prepare template
-        template_features = DataPipeline.get_template_raw_features(
-            bioassembly_dict=bioassembly_dict,
-            selected_indices=selected_indices,
-            template_featurizer=template_featurizer,
-        )
-
-        (
-            cropped_token_array,
-            cropped_atom_array,
-            cropped_msa_features,
-            cropped_template_features,
-        ) = crop.crop_by_indices(
-            selected_token_indices=selected_indices,
-            msa_features=msa_features,
-            template_features=template_features,
-        )
-
-        if crop_method == "ContiguousCropping":
-            resovled_atom_num = cropped_atom_array.is_resolved.sum()
-            # The criterion of “more than 4 atoms” is chosen arbitrarily.
-            assert (
-                resovled_atom_num > 4
-            ), f"{resovled_atom_num=} <= 4 after ContiguousCropping"
-
-        return (
-            crop_method,
-            cropped_token_array,
-            cropped_atom_array,
-            cropped_msa_features,
-            cropped_template_features,
-            reference_token_index,
-        )
+        return crop_method, selected_indices, reference_token_index
 
     @staticmethod
     def save_atoms_to_cif(
